@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "name": "opensubtitles.com", "status": "Good", "retry": "-" },
+    { "name": "addic7ed", "status": "Throttled: too many requests", "retry": "in 2 hours" },
+    { "name": "gestdown", "status": null, "retry": "-" }
+  ]
+}

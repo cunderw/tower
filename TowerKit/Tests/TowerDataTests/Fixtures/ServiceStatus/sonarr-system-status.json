@@ -1,0 +1,11 @@
+{
+  "appName": "Sonarr",
+  "instanceName": "Sonarr",
+  "version": "4.0.10.2544",
+  "buildTime": "2026-01-02T08:30:00Z",
+  "isDebug": false,
+  "isProduction": true,
+  "osName": "ubuntu",
+  "runtimeVersion": "6.0.35",
+  "startTime": "2026-01-01T00:00:00Z"
+}

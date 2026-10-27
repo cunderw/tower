@@ -1,0 +1,10 @@
+schemaVersion: 1
+# The tool sends error reports and usage metrics to Sentry unless this is true.
+sentryDisabled: true
+enabledWorkflows: ['simulator', 'simulator-management', 'swift-package', 'ui-automation']
+sessionDefaults:
+  projectPath: ./Tower.xcodeproj
+  scheme: Tower
+  simulatorName: Tower iPhone 17
+  platform: iOS Simulator
+  bundleId: com.cunderw.tower

@@ -1,0 +1,22 @@
+query DockerContainers {
+  docker {
+    containers {
+      id
+      names
+      image
+      state
+      status
+      autoStart
+      isUpdateAvailable
+      isOrphaned
+      webUiUrl
+      iconUrl
+      projectUrl
+      supportUrl
+      registryUrl
+      templatePath
+      hostConfig { networkMode }
+      ports { ip privatePort publicPort type }
+    }
+  }
+}

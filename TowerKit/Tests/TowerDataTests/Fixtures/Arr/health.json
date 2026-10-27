@@ -1,0 +1,27 @@
+[
+  {
+    "id": 3,
+    "source": "ImportListStatusCheck",
+    "type": "warning",
+    "message": "Lists unavailable due to failures: Example List",
+    "wikiUrl": "https://wiki.servarr.com/radarr/system#lists-are-unavailable-due-to-failures"
+  },
+  {
+    "id": 1,
+    "source": "IndexerStatusCheck",
+    "type": "error",
+    "message": "Indexers unavailable due to failures: Example Indexer",
+    "wikiUrl": "https://wiki.servarr.com/radarr/system#indexers-are-unavailable-due-to-failures"
+  },
+  {
+    "id": 4,
+    "source": "UpdateCheck",
+    "type": "notice",
+    "message": "New update is available"
+  },
+  {
+    "source": "MysteryCheck",
+    "type": "catastrophe",
+    "message": null
+  }
+]

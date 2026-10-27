@@ -1,0 +1,40 @@
+[
+  {
+    "id": 10,
+    "artistId": 1,
+    "title": "Long Wave",
+    "disambiguation": "deluxe edition",
+    "overview": "The fixture's newest record.",
+    "albumType": "Album",
+    "secondaryTypes": ["Live"],
+    "releaseDate": "2025-05-16T00:00:00Z",
+    "monitored": true,
+    "duration": 2823000,
+    "genres": ["Post-rock"],
+    "images": [
+      { "coverType": "cover", "url": "/MediaCover/Albums/10/cover.jpg", "remoteUrl": "https://images.example.invalid/longwave.jpg" }
+    ],
+    "statistics": { "trackFileCount": 9, "trackCount": 9, "totalTrackCount": 9, "sizeOnDisk": 734003200 }
+  },
+  {
+    "id": 11,
+    "artistId": 1,
+    "title": "Static Season",
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "releaseDate": "2023-03-02T00:00:00Z",
+    "monitored": true,
+    "duration": 2400000,
+    "statistics": { "trackFileCount": 5, "trackCount": 10, "totalTrackCount": 10, "sizeOnDisk": 320000000 }
+  },
+  {
+    "id": 12,
+    "artistId": 1,
+    "title": "Nothing Yet",
+    "albumType": "EP",
+    "secondaryTypes": [],
+    "releaseDate": "2099-01-01T00:00:00Z",
+    "monitored": true,
+    "statistics": { "trackFileCount": 0, "trackCount": 4, "totalTrackCount": 4, "sizeOnDisk": 0 }
+  }
+]

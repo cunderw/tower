@@ -1,0 +1,49 @@
+[
+  {
+    "id": 1,
+    "artistName": "The Wandering Signal",
+    "sortName": "wandering signal, the",
+    "foreignArtistId": "aa11bb22-cc33-dd44-ee55-ff6677889900",
+    "overview": "An artist that exists only in a fixture.",
+    "artistType": "Group",
+    "status": "continuing",
+    "monitored": true,
+    "qualityProfileId": 1,
+    "metadataProfileId": 2,
+    "path": "/data/media/music/The Wandering Signal",
+    "rootFolderPath": "/data/media/music",
+    "genres": ["Post-rock"],
+    "tags": [3],
+    "added": "2024-02-01T10:00:00Z",
+    "images": [
+      { "coverType": "poster", "url": "/MediaCover/1/poster.jpg", "remoteUrl": "https://images.example.invalid/tws.jpg" }
+    ],
+    "statistics": { "albumCount": 4, "trackFileCount": 38, "trackCount": 44, "totalTrackCount": 52, "sizeOnDisk": 2147483648 }
+  },
+  {
+    "id": 2,
+    "artistName": "Anvil Choir",
+    "sortName": "anvil choir",
+    "foreignArtistId": "bb22cc33-dd44-ee55-ff66-778899001122",
+    "artistType": "Group",
+    "status": "ended",
+    "monitored": false,
+    "qualityProfileId": 1,
+    "metadataProfileId": 1,
+    "rootFolderPath": "/data/media/music",
+    "genres": [],
+    "tags": [],
+    "statistics": { "albumCount": 2, "trackFileCount": 0, "trackCount": 20, "totalTrackCount": 20, "sizeOnDisk": 0 }
+  },
+  {
+    "id": 3,
+    "artistName": "Quiet Ledger",
+    "sortName": "quiet ledger",
+    "foreignArtistId": "cc33dd44-ee55-ff66-7788-990011223344",
+    "status": "continuing",
+    "monitored": true,
+    "qualityProfileId": 1,
+    "metadataProfileId": 2,
+    "statistics": { "albumCount": 1, "trackFileCount": 11, "trackCount": 11, "totalTrackCount": 11, "sizeOnDisk": 734003200 }
+  }
+]

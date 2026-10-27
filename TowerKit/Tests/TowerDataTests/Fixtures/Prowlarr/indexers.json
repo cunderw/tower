@@ -1,0 +1,40 @@
+[
+  {
+    "id": 1,
+    "name": "Example Public",
+    "definitionName": "ExamplePublic",
+    "implementation": "Cardigann",
+    "configContract": "CardigannSettings",
+    "enable": true,
+    "priority": 25,
+    "supportsRss": true,
+    "supportsSearch": true,
+    "protocol": "other",
+    "privacy": "public",
+    "indexerUrls": ["https://public.example.invalid/"],
+    "tags": [],
+    "fields": [
+      { "order": 0, "name": "baseUrl", "label": "Base URL", "value": "https://public.example.invalid/", "type": "select", "advanced": false,
+        "selectOptions": [ { "value": 0, "name": "https://public.example.invalid/", "order": 0 } ] },
+      { "order": 1, "name": "minimumAge", "label": "Minimum Age", "value": 1, "type": "number", "advanced": true }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Example Private",
+    "definitionName": "ExamplePrivate",
+    "implementation": "Cardigann",
+    "configContract": "CardigannSettings",
+    "enable": false,
+    "priority": 10,
+    "supportsRss": true,
+    "supportsSearch": true,
+    "protocol": "usenet",
+    "privacy": "private",
+    "tags": [3],
+    "fields": [
+      { "order": 0, "name": "apiKey", "label": "API Key", "value": "secret-value", "type": "password", "advanced": false },
+      { "order": 1, "name": "vip", "label": "VIP", "value": true, "type": "checkbox", "advanced": false }
+    ]
+  }
+]

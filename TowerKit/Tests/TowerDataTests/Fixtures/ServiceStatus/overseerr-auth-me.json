@@ -1,0 +1,9 @@
+{
+  "id": 1,
+  "displayName": "Example Admin",
+  "userType": 1,
+  "permissions": 2,
+  "avatar": "/os_logo_square.png",
+  "requestCount": 10,
+  "createdAt": "2025-01-01T00:00:00.000Z"
+}

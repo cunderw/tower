@@ -1,0 +1,81 @@
+[
+  {
+    "id": 44,
+    "title": "Example Series",
+    "sortTitle": "example series",
+    "status": "continuing",
+    "ended": false,
+    "overview": "A series that exists only in a fixture.",
+    "network": "Example Network",
+    "airTime": "21:00",
+    "images": [
+      { "coverType": "poster", "url": "/MediaCover/44/poster.jpg", "remoteUrl": "https://artworks.thetvdb.com/banners/poster.jpg" },
+      { "coverType": "fanart", "url": "/MediaCover/44/fanart.jpg", "remoteUrl": "https://artworks.thetvdb.com/banners/fanart.jpg" }
+    ],
+    "seasons": [
+      {
+        "seasonNumber": 0,
+        "monitored": false,
+        "statistics": { "episodeFileCount": 0, "episodeCount": 0, "totalEpisodeCount": 3, "sizeOnDisk": 0, "percentOfEpisodes": 0 }
+      },
+      {
+        "seasonNumber": 2,
+        "monitored": true,
+        "statistics": { "nextAiring": "2026-08-14T01:00:00Z", "episodeFileCount": 6, "episodeCount": 7, "totalEpisodeCount": 10, "sizeOnDisk": 32212254720, "percentOfEpisodes": 85.7 }
+      },
+      {
+        "seasonNumber": 1,
+        "monitored": true,
+        "statistics": { "episodeFileCount": 10, "episodeCount": 10, "totalEpisodeCount": 10, "sizeOnDisk": 53687091200, "percentOfEpisodes": 100 }
+      }
+    ],
+    "year": 2023,
+    "path": "/data/media/tv/Example Series",
+    "qualityProfileId": 4,
+    "seasonFolder": true,
+    "monitored": true,
+    "useSceneNumbering": false,
+    "runtime": 48,
+    "tvdbId": 555001,
+    "firstAired": "2023-03-05T00:00:00Z",
+    "seriesType": "standard",
+    "imdbId": "tt5550010",
+    "titleSlug": "example-series",
+    "certification": "TV-MA",
+    "genres": ["Drama"],
+    "tags": [2],
+    "added": "2023-03-06T09:00:00Z",
+    "nextAiring": "2026-08-14T01:00:00Z",
+    "previousAiring": "2026-08-07T01:00:00Z",
+    "someFieldTowerDoesNotModel": { "keep": "me" },
+    "statistics": {
+      "seasonCount": 2,
+      "episodeFileCount": 16,
+      "episodeCount": 17,
+      "totalEpisodeCount": 23,
+      "sizeOnDisk": 85899345920,
+      "percentOfEpisodes": 94.1
+    }
+  },
+  {
+    "id": 45,
+    "title": "Another Series",
+    "sortTitle": "another series",
+    "status": "ended",
+    "ended": true,
+    "year": 2019,
+    "path": "/data/media/tv/Another Series",
+    "qualityProfileId": 1,
+    "seasonFolder": false,
+    "monitored": false,
+    "runtime": 22,
+    "tvdbId": 555002,
+    "seriesType": "anime",
+    "genres": [],
+    "tags": [],
+    "images": [],
+    "seasons": [],
+    "added": "2020-01-01T09:00:00Z",
+    "statistics": { "seasonCount": 3, "episodeFileCount": 0, "episodeCount": 36, "totalEpisodeCount": 36, "sizeOnDisk": 0, "percentOfEpisodes": 0 }
+  }
+]

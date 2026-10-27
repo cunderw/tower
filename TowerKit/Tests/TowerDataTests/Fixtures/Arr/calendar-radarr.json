@@ -1,0 +1,20 @@
+[
+  {
+    "id": 812,
+    "title": "Example Movie",
+    "year": 2024,
+    "monitored": true,
+    "hasFile": false,
+    "inCinemas": "2024-06-14T00:00:00Z",
+    "digitalRelease": "2024-09-03T00:00:00Z",
+    "physicalRelease": "2024-09-17T00:00:00Z"
+  },
+  {
+    "id": 913,
+    "title": "Another Movie",
+    "year": 2023,
+    "monitored": false,
+    "hasFile": true,
+    "inCinemas": "2023-11-02T00:00:00Z"
+  }
+]

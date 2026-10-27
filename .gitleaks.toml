@@ -1,0 +1,15 @@
+title = "Tower"
+
+[extend]
+useDefault = true
+
+# Each allowlist needs the path and the exact text, so a second key in the same file still
+# fails the scan. Do not add a path-only exemption and do not widen these.
+
+[[allowlists]]
+description = "The made-up API key in the two SettingsSheet previews. It is not a key."
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)Tower/Features/Settings/SettingsSheet\.swift$''']
+regexes = ['''apiKey: "abcd1234efgh5678"''']
+regexTarget = "match"

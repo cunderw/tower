@@ -1,0 +1,8 @@
+{
+  "indexers": [
+    { "indexerId": 1, "indexerName": "Example Public", "averageResponseTime": 412, "numberOfQueries": 200, "numberOfGrabs": 18, "numberOfFailedQueries": 4, "numberOfFailedGrabs": 1 },
+    { "indexerId": 2, "indexerName": "Example Private", "averageResponseTime": 1203, "numberOfQueries": 0, "numberOfGrabs": 0, "numberOfFailedQueries": 0, "numberOfFailedGrabs": 0 }
+  ],
+  "userAgents": [],
+  "hosts": []
+}

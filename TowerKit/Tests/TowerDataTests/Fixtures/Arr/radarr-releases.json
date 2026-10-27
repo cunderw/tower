@@ -1,0 +1,33 @@
+[
+  {
+    "guid": "example-indexer-0001",
+    "quality": { "quality": { "id": 19, "name": "Bluray-2160p" } },
+    "age": 4,
+    "ageHours": 96.4,
+    "size": 87241068544,
+    "indexerId": 3,
+    "indexer": "Example Indexer",
+    "releaseGroup": "GROUP",
+    "title": "Example.Movie.2024.2160p.BluRay.REMUX.HEVC-GROUP",
+    "approved": true,
+    "temporarilyRejected": false,
+    "rejected": false,
+    "rejections": [],
+    "publishDate": "2026-08-09T08:00:00Z",
+    "protocol": "other"
+  },
+  {
+    "guid": "example-usenet-0002",
+    "quality": { "quality": { "id": 7, "name": "Bluray-1080p" } },
+    "size": 24696061952,
+    "indexerId": 5,
+    "indexer": "Example Usenet",
+    "title": "Example.Movie.2024.1080p.BluRay.x264-OTHER",
+    "approved": false,
+    "rejected": true,
+    "rejections": ["Quality Bluray-1080p is wanted, but Bluray-2160p is already downloaded"],
+    "publishDate": "2026-08-01T08:00:00Z",
+    "ageHours": 288.0,
+    "protocol": "usenet"
+  }
+]

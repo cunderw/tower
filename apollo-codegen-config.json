@@ -1,0 +1,27 @@
+{
+  "schemaNamespace": "TowerAPI",
+  "input": {
+    "operationSearchPaths": ["graphql/operations/**/*.graphql"],
+    "schemaSearchPaths": ["graphql/schema.graphqls"]
+  },
+  "output": {
+    "testMocks": {
+      "swiftPackage": {
+        "targetName": "TowerAPITestMocks"
+      }
+    },
+    "schemaTypes": {
+      "path": "./TowerAPI",
+      "moduleType": {
+        "swiftPackage": {}
+      }
+    },
+    "operations": {
+      "inSchemaModule": {}
+    }
+  },
+  "options": {
+    "schemaDocumentation": "include",
+    "warningsOnDeprecatedUsage": "include"
+  }
+}

@@ -1,0 +1,5 @@
+[
+  { "path": "/data", "label": "data", "freeSpace": 3221225472000, "totalSpace": 12000138625024 },
+  { "path": "/config", "label": "", "freeSpace": 48318382080, "totalSpace": 107374182400 },
+  { "path": "/mnt/empty", "label": "empty", "freeSpace": 0, "totalSpace": 0 }
+]

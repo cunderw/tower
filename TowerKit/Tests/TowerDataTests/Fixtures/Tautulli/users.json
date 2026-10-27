@@ -1,0 +1,38 @@
+{
+  "response": {
+    "result": "success",
+    "message": null,
+    "data": {
+      "recordsFiltered": 2,
+      "recordsTotal": "2",
+      "data": [
+        {
+          "user_id": "5",
+          "friendly_name": "Casey",
+          "username": "casey",
+          "plays": "412",
+          "duration": 1480000,
+          "last_seen": "1755043200",
+          "last_played": "Northern Lights - Aftermath",
+          "platform": "tvOS",
+          "player": "Apple TV",
+          "user_thumb": "/users/5.png",
+          "is_active": 1
+        },
+        {
+          "user_id": 7,
+          "friendly_name": "",
+          "username": "guest",
+          "plays": 3,
+          "duration": "9100",
+          "last_seen": null,
+          "last_played": "",
+          "platform": "Windows",
+          "player": "Chrome",
+          "thumb": "/users/7.png",
+          "is_active": "0"
+        }
+      ]
+    }
+  }
+}

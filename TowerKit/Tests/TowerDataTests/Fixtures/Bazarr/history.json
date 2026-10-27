@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "id": 900,
+      "action": 1,
+      "seriesTitle": "Northern Lights",
+      "episodeTitle": "The Missing Signal",
+      "episode_number": "2x11",
+      "language": { "name": "English", "code2": "en", "code3": "eng", "hi": false, "forced": false },
+      "provider": "opensubtitles.com",
+      "score": "96%",
+      "timestamp": "2 hours ago"
+    },
+    {
+      "id": 901,
+      "action": 2,
+      "title": "Winter Ledger",
+      "language": { "name": "French", "code2": "fr", "code3": "fra", "hi": false, "forced": true },
+      "provider": "addic7ed",
+      "score": 74,
+      "timestamp": "yesterday"
+    }
+  ],
+  "total": 2
+}

@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in Tower does not work the way it should.
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The bar for a good bug is that someone with no context can
+        reproduce it. Pick the area that fits below.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Exactly one. If you are not sure, pick the closest.
+      options:
+        - "area:ios — the app, its screens, its tests"
+        - "area:api — the Unraid GraphQL API and the service clients in TowerKit"
+        - "area:infra — build, release, tooling"
+        - "area:design — product and interaction"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Numbered, starting from launching the app. Say whether it happens in demo mode. If
+        it needs a server, say what kind: "Unraid 7.3 with Sonarr 4.0 added" is the sort of
+        detail that matters.
+      placeholder: |
+        1. Launch Tower
+        2. ...
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Tower version, iOS version, device or simulator, and the Unraid or service version if the bug involves one.
+      placeholder: "Tower 2.0.2, iOS 26.5, iPhone 17 simulator, Unraid 7.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: >
+        A screenshot, a screen recording, or the failing test output. For a failing test,
+        the log path from the run (`artifacts.buildLogPath` in its JSON result) and the
+        relevant lines are ideal. Remove server addresses, host names, user names and API
+        keys from logs and screenshots before you attach them.
+    validations:
+      required: false

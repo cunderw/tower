@@ -1,0 +1,47 @@
+{
+  "response": {
+    "result": "success",
+    "message": null,
+    "data": {
+      "recordsFiltered": 3,
+      "recordsTotal": 3,
+      "data": [
+        {
+          "section_id": "1",
+          "section_name": "Movies",
+          "section_type": "movie",
+          "count": "500",
+          "parent_count": null,
+          "child_count": null,
+          "plays": "1200",
+          "duration": 8200000,
+          "last_accessed": "1755043200",
+          "thumb": "/library/1.png"
+        },
+        {
+          "section_id": 2,
+          "section_name": "TV Shows",
+          "section_type": "show",
+          "count": 100,
+          "parent_count": "400",
+          "child_count": "6000",
+          "plays": 5000,
+          "duration": "16400000",
+          "last_accessed": 1754956800,
+          "thumb": ""
+        },
+        {
+          "section_id": "3",
+          "section_name": "Music",
+          "section_type": "artist",
+          "count": "50",
+          "parent_count": 300,
+          "child_count": 4000,
+          "plays": "200",
+          "duration": "410000",
+          "last_accessed": null
+        }
+      ]
+    }
+  }
+}

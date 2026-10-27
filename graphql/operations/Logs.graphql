@@ -1,0 +1,32 @@
+# The server's log files, for the syslog viewer in Settings.
+#
+# `size` is an `Int` (bytes), not `BigInt` — log files don't reach `Int32`, and
+# the schema agrees.
+query LogFiles {
+  logFiles {
+    name
+    path
+    size
+    modifiedAt
+  }
+}
+
+# One log file's contents.
+#
+# `content` is a **single string**, not a list of lines — splitting is the
+# client's job, and `LogFileContent.totalLines` is the server's own count for
+# comparison. `startLine` is 1-indexed and nullable.
+#
+# `lines` is a maximum, requested rather than unbounded: `docker.log` can run to
+# tens of KB and syslog grows without limit. `LogFileStore` raises it to reach
+# further back, which is the same lever `DockerLogs`' `tail` offers (see
+# `ContainerLogs`' doc comment for why paging *backward* by raising a maximum is
+# the only option these APIs give).
+query LogFile($path: String!, $lines: Int) {
+  logFile(path: $path, lines: $lines) {
+    path
+    content
+    totalLines
+    startLine
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": 700002,
+  "name": "Northern Lights",
+  "posterPath": "/nl.jpg",
+  "seasons": [
+    { "seasonNumber": 0, "name": "Specials", "episodeCount": 3, "airDate": "2021-12-01" },
+    { "seasonNumber": 1, "name": "Season 1", "episodeCount": 12, "airDate": "2022-01-05" },
+    { "seasonNumber": 2, "name": "Season 2", "episodeCount": 12, "airDate": "2023-01-04" },
+    { "seasonNumber": 3, "name": "Season 3", "episodeCount": 0, "airDate": null }
+  ]
+}

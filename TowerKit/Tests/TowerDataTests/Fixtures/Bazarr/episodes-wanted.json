@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "sonarrSeriesId": 14,
+      "sonarrEpisodeId": 2011,
+      "seriesTitle": "Northern Lights",
+      "episodeTitle": "The Missing Signal",
+      "episode_number": "2x11",
+      "missing_subtitles": [
+        { "name": "English", "code2": "en", "code3": "eng", "hi": false, "forced": false },
+        { "name": "English", "code2": "en", "code3": "eng", "hi": true, "forced": false }
+      ]
+    },
+    {
+      "sonarrSeriesId": 14,
+      "sonarrEpisodeId": 2012,
+      "seriesTitle": "Northern Lights",
+      "episodeTitle": "Aftermath",
+      "episode_number": "2x12",
+      "missing_subtitles": [ "es" ]
+    }
+  ],
+  "total": 2
+}

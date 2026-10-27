@@ -1,0 +1,44 @@
+# Secrets — never commit
+.env.local
+*.p8
+*.p12
+*.mobileprovision
+
+# Design notes (ADRs, specs, implementation plans) are kept outside this repo.
+# Ignored, so one copied in by mistake is not committed.
+docs/adr/
+docs/specs/
+docs/plans/
+
+# Xcode
+build/
+DerivedData/
+.build-logs/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+.swiftpm/
+Packages/
+*.moved-aside
+*.hmap
+*.ipa
+*.xcarchive
+*.dSYM.zip
+*.dSYM
+
+# SPM
+.build/
+
+# Apollo
+apollo-ios-cli
+.apollo/
+
+# macOS
+.DS_Store
+
+# App Store screenshots are **committed**, under docs/app-store-assets/ — see
+# CLAUDE.md. They are the assets uploaded to App Store Connect, so their diff
+# is the listing's diff.
+# A run's capture.json result sits beside each set and holds local paths.
+docs/app-store-assets/*.capture.json

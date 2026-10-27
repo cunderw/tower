@@ -1,0 +1,12 @@
+{
+  "appName": "Radarr",
+  "instanceName": "Radarr",
+  "version": "5.14.0.9383",
+  "buildTime": "2026-01-04T12:00:00Z",
+  "isDebug": false,
+  "isProduction": true,
+  "osName": "ubuntu",
+  "isNetCore": true,
+  "runtimeVersion": "8.0.11",
+  "startTime": "2026-01-01T00:00:00Z"
+}

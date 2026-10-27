@@ -1,0 +1,29 @@
+{
+  "pageInfo": { "pages": 1, "pageSize": 50, "results": 2, "page": 1 },
+  "results": [
+    {
+      "id": 12,
+      "issueType": 2,
+      "status": 1,
+      "createdAt": "2026-08-12T20:00:00.000Z",
+      "createdBy": { "id": 3, "displayName": "Alex Doe" },
+      "media": { "id": 900, "tmdbId": 700001, "mediaType": "movie", "title": "The Cartographer" },
+      "comments": [
+        {
+          "id": 44, "message": "Audio is out of sync from 00:12.",
+          "user": { "id": 3, "displayName": "Alex Doe" },
+          "createdAt": "2026-08-12T20:00:05.000Z"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "issueType": 3,
+      "status": 2,
+      "createdAt": "2026-08-01T12:00:00.000Z",
+      "createdBy": { "id": 4, "username": "bee" },
+      "media": { "id": 901, "tmdbId": 700002, "mediaType": "tv" },
+      "comments": []
+    }
+  ]
+}

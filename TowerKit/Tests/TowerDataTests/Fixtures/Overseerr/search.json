@@ -1,0 +1,20 @@
+{
+  "page": 1,
+  "totalPages": 1,
+  "totalResults": 3,
+  "results": [
+    {
+      "id": 700010, "mediaType": "movie", "title": "Harbour Lights",
+      "overview": "A film that exists only in a fixture.", "posterPath": "/hl.jpg",
+      "releaseDate": "2026-03-06", "voteAverage": 7.1
+    },
+    {
+      "id": 700002, "mediaType": "tv", "name": "Northern Lights",
+      "overview": "A series.", "posterPath": "/nl.jpg", "firstAirDate": "2021-09-14",
+      "mediaInfo": { "id": 901, "tmdbId": 700002, "status": 5, "mediaType": "tv" }
+    },
+    {
+      "id": 55, "mediaType": "person", "name": "Some Actor", "profilePath": "/p.jpg"
+    }
+  ]
+}

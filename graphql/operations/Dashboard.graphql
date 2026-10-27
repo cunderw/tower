@@ -1,0 +1,112 @@
+query Dashboard {
+  array {
+    state
+    capacity {
+      kilobytes {
+        free
+        used
+        total
+      }
+    }
+    parityCheckStatus {
+      status
+      correcting
+      progress
+      errors
+      speed
+      date
+      duration
+    }
+    disks {
+      id
+      idx
+      name
+      device
+      status
+      temp
+      size
+      fsFree
+      fsUsed
+      fsSize
+      fsType
+      rotational
+      numReads
+      numWrites
+      numErrors
+      type
+    }
+    parities {
+      id
+      idx
+      name
+      device
+      status
+      temp
+      size
+      fsFree
+      fsUsed
+      fsSize
+      fsType
+      rotational
+      numReads
+      numWrites
+      numErrors
+      type
+    }
+    caches {
+      id
+      idx
+      name
+      device
+      status
+      temp
+      size
+      fsFree
+      fsUsed
+      fsSize
+      fsType
+      rotational
+      numReads
+      numWrites
+      numErrors
+      type
+    }
+  }
+  info {
+    os {
+      distro
+      release
+      uptime
+    }
+    cpu {
+      brand
+      cores
+      threads
+    }
+  }
+  metrics {
+    cpu {
+      percentTotal
+    }
+    memory {
+      percentTotal
+      used
+      total
+    }
+  }
+  docker {
+    containers {
+      id
+      state
+    }
+  }
+  vms {
+    domains {
+      id
+      state
+    }
+  }
+  shares {
+    id
+  }
+}

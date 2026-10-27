@@ -1,0 +1,13 @@
+[
+  {
+    "id": 55021,
+    "seriesId": 44,
+    "seriesTitle": "Example Series",
+    "title": "The One With The Pilot",
+    "seasonNumber": 2,
+    "episodeNumber": 7,
+    "airDateUtc": "2026-08-14T01:00:00Z",
+    "monitored": true,
+    "hasFile": false
+  }
+]

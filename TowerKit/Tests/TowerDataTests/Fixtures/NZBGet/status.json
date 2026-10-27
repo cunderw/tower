@@ -1,0 +1,20 @@
+{
+  "version": "1.1",
+  "result": {
+    "DownloadRate": 12582912,
+    "RemainingSizeLo": 2147483648,
+    "RemainingSizeHi": 0,
+    "RemainingSizeMB": 2048,
+    "DownloadedSizeLo": 0,
+    "DownloadedSizeHi": 2,
+    "DownloadedSizeMB": 8192,
+    "FreeDiskSpaceLo": 1073741824,
+    "FreeDiskSpaceHi": 200,
+    "FreeDiskSpaceMB": 819200,
+    "DownloadPaused": false,
+    "DownloadLimit": 0,
+    "UpTimeSec": 86400,
+    "PostJobCount": 1,
+    "ThreadCount": 12
+  }
+}

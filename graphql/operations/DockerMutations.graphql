@@ -1,0 +1,5 @@
+mutation StartContainer($id: PrefixedID!)   { docker { start(id: $id)   { id state status } } }
+mutation StopContainer($id: PrefixedID!)    { docker { stop(id: $id)    { id state status } } }
+mutation RestartContainer($id: PrefixedID!) { docker { restart(id: $id) { id state status } } }
+mutation PauseContainer($id: PrefixedID!)   { docker { pause(id: $id)   { id state status } } }
+mutation UnpauseContainer($id: PrefixedID!) { docker { unpause(id: $id) { id state status } } }

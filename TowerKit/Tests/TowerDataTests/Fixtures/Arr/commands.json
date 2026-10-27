@@ -1,0 +1,22 @@
+[
+  {
+    "id": 5501,
+    "name": "RssSync",
+    "commandName": "Rss Sync",
+    "status": "started",
+    "queued": "2026-08-13T02:40:00Z",
+    "started": "2026-08-13T02:40:01Z",
+    "trigger": "manual"
+  },
+  {
+    "id": 5500,
+    "name": "RefreshMovie",
+    "commandName": "Refresh Movie",
+    "message": "Completed",
+    "status": "completed",
+    "queued": "2026-08-13T02:30:00Z",
+    "started": "2026-08-13T02:30:01Z",
+    "ended": "2026-08-13T02:30:44Z",
+    "trigger": "manual"
+  }
+]

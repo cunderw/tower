@@ -1,0 +1,79 @@
+[
+  {
+    "id": 0,
+    "title": "Brand New Series",
+    "sortTitle": "brand new series",
+    "status": "upcoming",
+    "year": 2026,
+    "overview": "Not in the library yet.",
+    "network": "Example Network",
+    "monitored": false,
+    "seasonFolder": true,
+    "qualityProfileId": 0,
+    "runtime": 30,
+    "seriesType": "standard",
+    "genres": [
+      "Comedy"
+    ],
+    "tags": [],
+    "seasons": [],
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/0/poster.jpg",
+        "remoteUrl": "https://artworks.thetvdb.com/banners/new.jpg"
+      }
+    ],
+    "tvdbId": 555100,
+    "added": "0001-01-01T00:00:00Z"
+  },
+  {
+    "id": 44,
+    "title": "Example Series",
+    "sortTitle": "example series",
+    "status": "continuing",
+    "year": 2023,
+    "monitored": true,
+    "seasonFolder": true,
+    "qualityProfileId": 4,
+    "runtime": 48,
+    "seriesType": "standard",
+    "genres": [
+      "Drama"
+    ],
+    "tags": [
+      2
+    ],
+    "seasons": [],
+    "images": [],
+    "tvdbId": 555001,
+    "added": "2023-03-06T09:00:00Z"
+  },
+  {
+    "title": "Unindexed Series",
+    "sortTitle": "unindexed series",
+    "status": "upcoming",
+    "year": 2026,
+    "overview": "Sonarr omits `id` entirely for a title not in the library.",
+    "network": "Example Network",
+    "monitored": false,
+    "seasonFolder": true,
+    "qualityProfileId": 0,
+    "runtime": 30,
+    "seriesType": "standard",
+    "genres": [
+      "Comedy"
+    ],
+    "tags": [],
+    "seasons": [],
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/0/poster.jpg",
+        "remoteUrl": "https://artworks.thetvdb.com/banners/new.jpg"
+      }
+    ],
+    "tvdbId": 555200,
+    "added": "0001-01-01T00:00:00Z"
+  }
+]

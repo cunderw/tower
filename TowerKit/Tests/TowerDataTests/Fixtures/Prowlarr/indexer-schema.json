@@ -1,0 +1,24 @@
+[
+  {
+    "definitionName": "ExampleIndexer",
+    "implementation": "Cardigann",
+    "configContract": "CardigannSettings",
+    "description": "An example indexer that exists only in a fixture.",
+    "language": "en-US",
+    "protocol": "other",
+    "privacy": "private",
+    "indexerUrls": ["https://indexer.example.invalid/"],
+    "fields": [
+      { "order": 3, "name": "retentionDays", "label": "Retention", "helpText": "Days to keep.", "value": 1440, "type": "number", "advanced": true },
+      { "order": 0, "name": "username", "label": "Username", "value": "", "type": "textbox", "advanced": false },
+      { "order": 1, "name": "password", "label": "Password", "value": "", "type": "password", "advanced": false },
+      { "order": 2, "name": "sort", "label": "Sort requested from site", "value": 0, "type": "select", "advanced": false,
+        "selectOptions": [
+          { "value": 0, "name": "created", "order": 0, "hint": "Newest first" },
+          { "value": 1, "name": "size", "order": 1 }
+        ] },
+      { "order": 4, "name": "englishOnly", "label": "English Only", "value": false, "type": "checkbox", "advanced": false },
+      { "order": 5, "name": "internalToken", "label": "Internal", "value": "x", "type": "textbox", "hidden": "hidden" }
+    ]
+  }
+]

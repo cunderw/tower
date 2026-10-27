@@ -1,0 +1,58 @@
+[
+  {
+    "id": 55022,
+    "seriesId": 44,
+    "tvdbId": 900002,
+    "episodeFileId": 0,
+    "seasonNumber": 2,
+    "episodeNumber": 8,
+    "title": "",
+    "airDateUtc": "2126-08-21T01:00:00Z",
+    "runtime": 48,
+    "hasFile": false,
+    "monitored": true
+  },
+  {
+    "id": 55021,
+    "seriesId": 44,
+    "tvdbId": 900001,
+    "episodeFileId": 4412,
+    "seasonNumber": 2,
+    "episodeNumber": 7,
+    "title": "The One With The Pilot",
+    "overview": "An episode that exists only in a fixture.",
+    "airDateUtc": "2026-08-07T01:00:00Z",
+    "runtime": 48,
+    "hasFile": true,
+    "monitored": true,
+    "episodeFile": {
+      "id": 4412,
+      "seriesId": 44,
+      "seasonNumber": 2,
+      "relativePath": "Season 02/Example.Series.S02E07.mkv",
+      "size": 5368709120,
+      "dateAdded": "2026-08-07T03:11:00Z",
+      "releaseGroup": "GROUP",
+      "quality": { "quality": { "id": 9, "name": "WEBDL-1080p" } },
+      "mediaInfo": {
+        "audioChannels": 5.1,
+        "audioCodec": "EAC3",
+        "audioLanguages": "eng",
+        "videoCodec": "h264",
+        "resolution": "1920x1080",
+        "runTime": "0:47:12"
+      }
+    }
+  },
+  {
+    "id": 55000,
+    "seriesId": 44,
+    "seasonNumber": 1,
+    "episodeNumber": 1,
+    "title": "Beginnings",
+    "airDateUtc": "2023-03-05T01:00:00Z",
+    "runtime": 48,
+    "hasFile": false,
+    "monitored": true
+  }
+]

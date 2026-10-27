@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
+  <!-- Tower's only cryptography is system HTTPS to servers the user configures
+       (the Unraid box and its services) and the keychain, both exempt. Declaring
+       it here answers the export-compliance questionnaire once instead of on
+       every TestFlight upload. -->
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
+  <!-- Required, not cosmetic: `TARGETED_DEVICE_FAMILY = "1,2"` makes this an iPad
+       app, and App Store Connect *rejects the upload* outright when an iPad app
+       declares no orientations — "No orientations were specified in the
+       com.cunderw.tower bundle". iPad must offer all four so multitasking can
+       resize the window in any of them.
+
+       The iPhone list deliberately omits upside-down: no Face ID iPhone supports
+       it, so advertising it would be a claim the hardware doesn't honour. -->
+  <key>UISupportedInterfaceOrientations</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+  <key>UISupportedInterfaceOrientations~ipad</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationPortraitUpsideDown</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+</dict>
+</plist>

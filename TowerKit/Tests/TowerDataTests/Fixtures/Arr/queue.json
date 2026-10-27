@@ -1,0 +1,65 @@
+{
+  "page": 1,
+  "pageSize": 50,
+  "sortKey": "timeleft",
+  "sortDirection": "ascending",
+  "totalRecords": 3,
+  "records": [
+    {
+      "id": 41,
+      "movieId": 812,
+      "languages": [{ "id": 1, "name": "English" }],
+      "quality": { "quality": { "id": 7, "name": "Bluray-1080p" }, "revision": { "version": 1 } },
+      "customFormatScore": 0,
+      "size": 24696061952.0,
+      "title": "Example.Movie.2024.1080p.BluRay.x264-GROUP",
+      "estimatedCompletionTime": "2026-08-13T02:41:12Z",
+      "added": "2026-08-13T02:10:04Z",
+      "status": "downloading",
+      "trackedDownloadStatus": "ok",
+      "trackedDownloadState": "downloading",
+      "statusMessages": [],
+      "downloadId": "0000000000000000000000000000000000000000",
+      "protocol": "usenet",
+      "downloadClient": "NZBGet",
+      "downloadClientHasPostImportCategory": false,
+      "indexer": "Example Indexer (Prowlarr)",
+      "outputPath": "/downloads/complete/movies/Example.Movie.2024",
+      "sizeleft": 8232020650.0,
+      "timeleft": "00:12:34"
+    },
+    {
+      "id": 42,
+      "movieId": 913,
+      "quality": { "quality": { "id": 9, "name": "WEBDL-2160p" } },
+      "size": 68719476736.0,
+      "title": "Another.Movie.2023.2160p.WEB-DL-GROUP",
+      "status": "warning",
+      "trackedDownloadStatus": "warning",
+      "trackedDownloadState": "importBlocked",
+      "statusMessages": [
+        {
+          "title": "Another.Movie.2023.2160p.WEB-DL-GROUP",
+          "messages": ["No files found are eligible for import"]
+        }
+      ],
+      "errorMessage": null,
+      "protocol": "usenet",
+      "downloadClient": "NZBGet",
+      "indexer": "Example Usenet (Prowlarr)",
+      "sizeleft": 0.0,
+      "timeleft": null
+    },
+    {
+      "id": 43,
+      "movieId": null,
+      "size": 0.0,
+      "title": null,
+      "status": "quantumTunnelling",
+      "trackedDownloadStatus": "sideways",
+      "trackedDownloadState": "hyperimporting",
+      "protocol": "carrierPigeon",
+      "sizeleft": 0.0
+    }
+  ]
+}

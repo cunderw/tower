@@ -1,0 +1,39 @@
+{
+  "page": 1,
+  "pageSize": 20,
+  "sortKey": "date",
+  "sortDirection": "descending",
+  "totalRecords": 214,
+  "records": [
+    {
+      "id": 90210,
+      "movieId": 812,
+      "sourceTitle": "Example.Movie.2024.1080p.BluRay.x264-GROUP",
+      "quality": { "quality": { "id": 7, "name": "Bluray-1080p" } },
+      "qualityCutoffNotMet": false,
+      "date": "2026-08-13T02:10:04Z",
+      "downloadId": "0000000000000000000000000000000000000000",
+      "eventType": "grabbed"
+    },
+    {
+      "id": 90209,
+      "movieId": 913,
+      "sourceTitle": "Another.Movie.2023.2160p.WEB-DL-GROUP",
+      "date": "2026-08-12T23:44:51Z",
+      "eventType": "downloadFailed"
+    },
+    {
+      "id": 90208,
+      "movieId": 913,
+      "sourceTitle": "Another.Movie.2023.1080p.WEB-DL-GROUP",
+      "date": "2026-08-12T21:02:11Z",
+      "eventType": "movieFileDeleted"
+    },
+    {
+      "id": 90207,
+      "movieId": 700,
+      "date": "2026-08-12T20:00:00Z",
+      "eventType": "somethingNewUpstream"
+    }
+  ]
+}

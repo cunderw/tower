@@ -1,0 +1,28 @@
+[
+  {
+    "provider": "opensubtitles.com",
+    "language": { "name": "English", "code2": "en", "code3": "eng", "hi": false, "forced": false },
+    "score": 96,
+    "subtitle": "b64-handle-aaa",
+    "release_info": ["Northern.Lights.S02E11.1080p.WEB-DL-DEMO"],
+    "uploader": "someone",
+    "url": "https://opensubtitles.example.invalid/s/aaa",
+    "matches": ["series", "season", "episode", "release_group"]
+  },
+  {
+    "provider": "addic7ed",
+    "language": { "name": "English", "code2": "en", "code3": "eng" },
+    "score": 62,
+    "subtitle": "b64-handle-bbb",
+    "release_info": ["Northern.Lights.S02E11.HDTV"],
+    "matches": ["series", "season"],
+    "hearing_impaired": "True",
+    "forced": "False"
+  },
+  {
+    "provider": "brokenprovider",
+    "language": { "name": "English", "code2": "en" },
+    "score": 80,
+    "release_info": []
+  }
+]

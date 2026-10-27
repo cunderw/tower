@@ -1,0 +1,36 @@
+# The user shares, for the Shares tab.
+#
+# Three fields `Share` offers are deliberately **not** selected, each for a
+# different reason:
+#
+# - `size` — Unraid reports `0` for every share. A `0` rendered
+#   as "total size" is a lie, not a missing value, and there is nothing else to
+#   do with it.
+# - `color` — the web GUI's own status swatch (`"green-on"`, `"yellow-on"`).
+#   It encodes a presentation decision made by a different UI, not a fact
+#   about the share, and Tower uses semantic colours it derives itself.
+# - `luksStatus` — Unraid reports an undocumented `"0"` for every share. Tower cannot say
+#   what it means, so it cannot render it honestly.
+#
+# `used` and `free` **are** selected, but they do not describe the share: they
+# report the used/free space of the storage *pool* the share resides on, so
+# every share on the same pool returns byte-identical values. The domain model
+# renames them `poolUsedKilobytes`/`poolFreeKilobytes` for exactly that reason,
+# and only the share detail screen shows them, under a section that says so.
+query Shares {
+  shares {
+    id
+    name
+    nameOrig
+    comment
+    include
+    exclude
+    cache
+    allocator
+    splitLevel
+    floor
+    cow
+    used
+    free
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "version": "1.1",
+  "result": [
+    {
+      "NZBID": 30,
+      "Name": "Old.Film.2018-DEMO",
+      "Status": "SUCCESS/ALL",
+      "Category": "movies",
+      "FileSizeLo": 1073741824,
+      "FileSizeHi": 0,
+      "FileSizeMB": 1024,
+      "HistoryTime": 1723464000,
+      "DownloadTimeSec": 420
+    },
+    {
+      "NZBID": 31,
+      "Name": "Broken.Release-DEMO",
+      "Status": "FAILURE/PAR",
+      "Category": "tv",
+      "FileSizeLo": 536870912,
+      "FileSizeHi": 0,
+      "FileSizeMB": 512,
+      "HistoryTime": 1723550400,
+      "DownloadTimeSec": 90
+    }
+  ]
+}

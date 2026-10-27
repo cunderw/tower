@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose something Tower should do.
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing: Tower has **no backend, no account and no telemetry**. It talks
+        directly to your own server and the services you add. A proposal that changes
+        that needs to argue the case, which is fine, but say so up front.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Exactly one.
+      options:
+        - "area:ios — the app, its screens, its tests"
+        - "area:api — the Unraid GraphQL API and the service clients in TowerKit"
+        - "area:infra — build, release, tooling"
+        - "area:design — product and interaction"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The deliverable, in a sentence or two. What would exist that does not exist now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: >
+        What is hard or impossible today. Concrete beats general. A moment when you
+        wanted this is worth more than a category of user who might.
+    validations:
+      required: true
+
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: >
+        How anyone would know it was done. Write criteria that can *fail*: "works
+        correctly" is not a criterion, "the dashboard shows the new disk within one
+        refresh" is.
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] Build is warning-free
+    validations:
+      required: true

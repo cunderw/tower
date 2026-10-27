@@ -1,0 +1,74 @@
+{
+  "id": 812,
+  "title": "Example Movie",
+  "originalTitle": "Example Movie",
+  "sortTitle": "example movie",
+  "sizeOnDisk": 87241068544,
+  "status": "released",
+  "overview": "A film that exists only in a fixture.",
+  "inCinemas": "2024-06-14T00:00:00Z",
+  "physicalRelease": "2024-09-17T00:00:00Z",
+  "digitalRelease": "2024-09-03T00:00:00Z",
+  "images": [
+    {
+      "coverType": "poster",
+      "url": "/MediaCover/812/poster.jpg",
+      "remoteUrl": "https://image.tmdb.org/t/p/original/poster.jpg"
+    },
+    {
+      "coverType": "fanart",
+      "url": "/MediaCover/812/fanart.jpg",
+      "remoteUrl": "https://image.tmdb.org/t/p/original/fanart.jpg"
+    }
+  ],
+  "year": 2024,
+  "studio": "Example Pictures",
+  "path": "/data/media/movies/Example Movie (2024)",
+  "qualityProfileId": 4,
+  "hasFile": true,
+  "movieFileId": 4411,
+  "monitored": true,
+  "minimumAvailability": "released",
+  "isAvailable": true,
+  "folderName": "Example Movie (2024)",
+  "runtime": 128,
+  "certification": "PG-13",
+  "genres": [
+    "Drama",
+    "Science Fiction"
+  ],
+  "tags": [
+    1
+  ],
+  "added": "2024-09-05T18:02:11Z",
+  "tmdbId": 999001,
+  "imdbId": "tt9990010",
+  "titleSlug": "example-movie-999001",
+  "someFieldTowerDoesNotModel": {
+    "nested": true,
+    "count": 3
+  },
+  "movieFile": {
+    "id": 4411,
+    "movieId": 812,
+    "relativePath": "Example Movie (2024) Bluray-2160p.mkv",
+    "path": "/data/media/movies/Example Movie (2024)/Example Movie (2024) Bluray-2160p.mkv",
+    "size": 87241068544,
+    "dateAdded": "2024-09-06T02:14:00Z",
+    "releaseGroup": "GROUP",
+    "quality": {
+      "quality": {
+        "id": 19,
+        "name": "Bluray-2160p"
+      }
+    },
+    "mediaInfo": {
+      "audioChannels": 7.1,
+      "audioCodec": "TrueHD Atmos",
+      "audioLanguages": "eng / fra",
+      "videoCodec": "HEVC",
+      "resolution": "3840x2160",
+      "runTime": "2:08:00"
+    }
+  }
+}

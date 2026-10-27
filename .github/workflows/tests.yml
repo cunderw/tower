@@ -1,0 +1,46 @@
+# The TowerKit tests on every pull request. CLAUDE.md, "Build and test", says what each
+# tier covers.
+#
+# `TowerTests` and the UI tests run nowhere hosted. A pull request still says which of
+# those its author ran.
+#
+# A pull request from a fork runs this with a read-only token and no secrets.
+name: Tests
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # Names bash so every step runs with `-o pipefail`. Without it a failing `swift test`
+    # piped into `tee` reports the pipe's status, which is tee's.
+    shell: bash
+
+jobs:
+  kit:
+    name: TowerKit
+    # Only the public repository runs this job. Another copy of the repository, such as a
+    # private mirror or a fork's own pull requests, spends no macOS minutes on it.
+    if: github.repository == 'cunderw/tower'
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: swift test
+        run: swift test --package-path TowerKit 2>&1 | tee "$RUNNER_TEMP/kit.log"
+
+      # A run that executed nothing also exits 0.
+      - name: Check that tests ran
+        run: grep -E 'Test run with [1-9][0-9]* tests? in [0-9]+ suites? passed' "$RUNNER_TEMP/kit.log"
+
+      - name: Report warnings
+        if: always()
+        run: scripts/ci-warnings.sh "$RUNNER_TEMP/kit.log"

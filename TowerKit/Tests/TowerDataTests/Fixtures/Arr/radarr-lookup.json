@@ -1,0 +1,74 @@
+[
+  {
+    "id": 0,
+    "title": "Brand New Film",
+    "sortTitle": "brand new film",
+    "year": 2026,
+    "overview": "Not in the library yet.",
+    "studio": "Example Pictures",
+    "runtime": 105,
+    "status": "announced",
+    "monitored": false,
+    "hasFile": false,
+    "qualityProfileId": 0,
+    "genres": [
+      "Thriller"
+    ],
+    "tags": [],
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/0/poster.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/new.jpg"
+      }
+    ],
+    "tmdbId": 999100,
+    "added": "0001-01-01T00:00:00Z"
+  },
+  {
+    "id": 812,
+    "title": "Example Movie",
+    "sortTitle": "example movie",
+    "year": 2024,
+    "studio": "Example Pictures",
+    "runtime": 128,
+    "status": "released",
+    "monitored": true,
+    "hasFile": true,
+    "qualityProfileId": 4,
+    "genres": [
+      "Drama"
+    ],
+    "tags": [
+      1
+    ],
+    "images": [],
+    "tmdbId": 999001,
+    "added": "2024-09-05T18:02:11Z"
+  },
+  {
+    "title": "Unindexed Film",
+    "sortTitle": "unindexed film",
+    "year": 2026,
+    "overview": "Radarr 6 omits `id` entirely for a title not in the library.",
+    "studio": "Example Pictures",
+    "runtime": 105,
+    "status": "announced",
+    "monitored": false,
+    "hasFile": false,
+    "qualityProfileId": 0,
+    "genres": [
+      "Thriller"
+    ],
+    "tags": [],
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/0/poster.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/new.jpg"
+      }
+    ],
+    "tmdbId": 999200,
+    "added": "0001-01-01T00:00:00Z"
+  }
+]

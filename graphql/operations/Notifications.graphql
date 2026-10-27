@@ -1,0 +1,84 @@
+# The notification overview — the counts behind the toolbar bell's badge.
+#
+# Split from `NotificationList` below because they refresh on different
+# schedules: the badge needs the counts on every poll, while the list is only
+# fetched while the sheet is open (and then a page at a time).
+query NotificationOverview {
+  notifications {
+    id
+    overview {
+      unread { info warning alert total }
+      archive { info warning alert total }
+    }
+  }
+}
+
+# One page of notifications from either bucket.
+#
+# `NotificationFilter` requires **both** `offset` and `limit`, with no defaults.
+# There is no total in the response: `overview.<bucket>.total` is the only count,
+# which is why the query above exists separately.
+#
+# `formattedTimestamp` is deliberately **not** selected. The server pre-renders
+# it in its own locale and format ("Thu 01 Jan 2026 12:00:00 AM"); rendering a
+# server-formatted date in an app whose stated goal is to look like a system app
+# is exactly the cross-platform tell Tower avoids. Tower parses `timestamp`
+# and formats it itself.
+#
+# `timestamp` is a nullable **`String`**, not the `DateTime` scalar — and by
+# design it stays a string on the wire, parsed at the repository
+# boundary where an unreadable value degrades to `nil` instead of failing the
+# whole page.
+#
+# `link` is a server-*relative* path (`"/Settings/UPSsettings"`), not a URL. The
+# model carries it raw; resolving it against the stored server URL is the app
+# layer's job, since `TowerCore` has no concept of a server-relative URL.
+query NotificationList($filter: NotificationFilter!) {
+  notifications {
+    id
+    list(filter: $filter) {
+      id
+      title
+      subject
+      description
+      importance
+      link
+      type
+      timestamp
+    }
+  }
+}
+
+# The three single-notification mutations, plus one bulk.
+#
+# Each returns the notification (or the recomputed overview), so unlike the VM
+# actions there is something to merge — but the overview and the list are
+# separate queries, so `NotificationStore` re-reads what it needs rather than
+# trying to reconcile two shapes by hand.
+#
+# **`deleteArchivedNotifications` and `unarchiveAll` are deliberately absent.**
+# They are bulk and irreversible, and a real server can hold an alert the user
+# has not acted on yet. `archiveAll` is here because
+# archiving is reversible (`unreadNotification` brings one back); deleting is
+# not.
+mutation ArchiveNotification($id: PrefixedID!) {
+  archiveNotification(id: $id) { id type }
+}
+
+mutation UnreadNotification($id: PrefixedID!) {
+  unreadNotification(id: $id) { id type }
+}
+
+mutation DeleteNotification($id: PrefixedID!, $type: NotificationType!) {
+  deleteNotification(id: $id, type: $type) {
+    unread { info warning alert total }
+    archive { info warning alert total }
+  }
+}
+
+mutation ArchiveAllNotifications {
+  archiveAll {
+    unread { info warning alert total }
+    archive { info warning alert total }
+  }
+}

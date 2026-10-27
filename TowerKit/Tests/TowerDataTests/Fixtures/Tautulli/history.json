@@ -1,0 +1,48 @@
+{
+  "response": {
+    "result": "success",
+    "message": null,
+    "data": {
+      "recordsFiltered": "2",
+      "recordsTotal": 1204,
+      "draw": 1,
+      "data": [
+        {
+          "id": "88031",
+          "reference_id": 88031,
+          "date": "1755043200",
+          "user": "casey",
+          "friendly_name": "Casey",
+          "user_id": 5,
+          "full_title": "Northern Lights - Aftermath",
+          "title": "Aftermath",
+          "grandparent_title": "Northern Lights",
+          "parent_media_index": 2,
+          "media_index": "12",
+          "media_type": "episode",
+          "player": "Apple TV",
+          "platform": "tvOS",
+          "transcode_decision": "direct play",
+          "watched_status": 1,
+          "percent_complete": "100",
+          "duration": "3702"
+        },
+        {
+          "id": 88030,
+          "date": 1754956800,
+          "user": "guest",
+          "friendly_name": "",
+          "user_id": "7",
+          "full_title": "Winter Ledger",
+          "media_type": "movie",
+          "player": "Chrome",
+          "platform": "Windows",
+          "transcode_decision": "transcode",
+          "watched_status": 0.5,
+          "percent_complete": 62,
+          "duration": 4100
+        }
+      ]
+    }
+  }
+}

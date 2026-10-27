@@ -1,0 +1,22 @@
+# Everything `VmDomain` exposes, not a subset: the type carries only `id`,
+# `name`, `state`, and a deprecated `uuid` (which is `id` without the server
+# prefix). There is no vCPU count, memory figure, disk list, or uptime to
+# select — a reader expecting a richer VM detail screen should not assume
+# this query is under-selected.
+#
+# `vms.id` is selected because Apollo needs it for cache identity on a `Node`;
+# nothing renders it.
+#
+# `domains` is a **nullable** list (`[VmDomain!]`), unlike `docker.containers`.
+# Null means VM reporting is unavailable — libvirt stopped or errored — not
+# "zero VMs defined". `VMInventory` carries that distinction through to the UI.
+query VMs {
+  vms {
+    id
+    domains {
+      id
+      name
+      state
+    }
+  }
+}

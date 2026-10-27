@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "sonarrSeriesId": 14, "title": "Northern Lights", "monitored": true, "episodeMissingCount": 3, "profileId": 1, "profileName": "English + French", "poster": "https://images.example.invalid/nl.jpg" },
+    { "sonarrSeriesId": 15, "title": "Anvil Road", "monitored": false, "episodeMissingCount": 0, "profileName": "English" }
+  ],
+  "total": 2
+}

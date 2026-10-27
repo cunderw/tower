@@ -1,0 +1,17 @@
+# The seven `VmMutations` actions Tower offers for a VM.
+#
+# Every one returns `Boolean!`, not a domain object — a real structural
+# difference from `DockerMutations.graphql`, whose actions return
+# `id`/`state`/`status` and are therefore authoritative for their row. There
+# is nothing to merge here: `false` is a server-side *refusal* (mapped to
+# `AppError.actionRefused`, never swallowed as success), and a `true` tells
+# you only that the request was accepted. `VMStore.perform(_:on:)` re-fetches
+# `VMs` afterwards rather than fabricating a state, and tolerates libvirt
+# still reporting the old one — transitions are asynchronous.
+mutation StartVM($id: PrefixedID!)     { vm { start(id: $id) } }
+mutation StopVM($id: PrefixedID!)      { vm { stop(id: $id) } }
+mutation ForceStopVM($id: PrefixedID!) { vm { forceStop(id: $id) } }
+mutation PauseVM($id: PrefixedID!)     { vm { pause(id: $id) } }
+mutation ResumeVM($id: PrefixedID!)    { vm { resume(id: $id) } }
+mutation RebootVM($id: PrefixedID!)    { vm { reboot(id: $id) } }
+mutation ResetVM($id: PrefixedID!)     { vm { reset(id: $id) } }

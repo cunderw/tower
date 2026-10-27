@@ -1,0 +1,11 @@
+{
+  "appName": "Prowlarr",
+  "instanceName": "Prowlarr",
+  "version": "1.28.2.4885",
+  "buildTime": "2026-01-03T21:40:00Z",
+  "isDebug": false,
+  "isProduction": true,
+  "osName": "ubuntu",
+  "runtimeVersion": "6.0.35",
+  "startTime": "2026-01-01T00:00:00Z"
+}

@@ -1,0 +1,5 @@
+[
+  { "id": 300, "albumId": 10, "title": "Second Side Opener", "trackNumber": "B1", "absoluteTrackNumber": 6, "mediumNumber": 2, "duration": 254000, "hasFile": true, "explicit": false },
+  { "id": 301, "albumId": 10, "title": "First Light", "trackNumber": "A1", "absoluteTrackNumber": 1, "mediumNumber": 1, "duration": 312000, "hasFile": true, "explicit": false },
+  { "id": 302, "albumId": 10, "title": "Interference", "trackNumber": "A2", "absoluteTrackNumber": 2, "mediumNumber": 1, "duration": 198000, "hasFile": false, "explicit": true }
+]

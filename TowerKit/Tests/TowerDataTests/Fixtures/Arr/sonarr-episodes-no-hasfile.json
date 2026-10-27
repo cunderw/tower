@@ -1,0 +1,30 @@
+[
+  {
+    "id": 66001,
+    "seriesId": 44,
+    "seasonNumber": 3,
+    "episodeNumber": 1,
+    "title": "Said Nothing But Sent The File",
+    "airDateUtc": "2024-01-05T01:00:00Z",
+    "runtime": 48,
+    "monitored": true,
+    "episodeFile": {
+      "id": 7001,
+      "seriesId": 44,
+      "seasonNumber": 3,
+      "relativePath": "Season 03/Example.Series.S03E01.mkv",
+      "size": 2147483648,
+      "quality": { "quality": { "id": 9, "name": "WEBDL-1080p" } }
+    }
+  },
+  {
+    "id": 66002,
+    "seriesId": 44,
+    "seasonNumber": 3,
+    "episodeNumber": 2,
+    "title": "Said Nothing And Sent No File",
+    "airDateUtc": "2024-01-12T01:00:00Z",
+    "runtime": 48,
+    "monitored": true
+  }
+]

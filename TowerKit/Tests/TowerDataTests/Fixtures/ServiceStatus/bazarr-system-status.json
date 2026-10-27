@@ -1,0 +1,11 @@
+{
+  "data": {
+    "bazarr_version": "1.4.5",
+    "package_version": "",
+    "sonarr_version": "4.0.10.2544",
+    "radarr_version": "5.14.0.9383",
+    "operating_system": "Linux-6.1.0-x86_64",
+    "python_version": "3.11.9",
+    "start_time": 1767225600
+  }
+}
