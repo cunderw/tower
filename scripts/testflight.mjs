@@ -158,7 +158,8 @@ async function distributeExternally(appId, build, notes) {
   const wanted = (process.env.TESTFLIGHT_EXTERNAL_GROUPS ?? '')
     .split(',').map((s) => s.trim()).filter(Boolean);
   if (wanted.length === 0) {
-    report('external groups: none named, internal testers only');
+    report('external groups: none named, internal testers only. Manual step: add the build to ' +
+      'the public group in App Store Connect, or set TESTFLIGHT_EXTERNAL_GROUPS.');
     return;
   }
   const groups = (await api('GET', `/v1/betaGroups?filter[app]=${appId}&limit=200&fields[betaGroups]=name`)).data;

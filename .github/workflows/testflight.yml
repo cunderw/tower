@@ -245,13 +245,13 @@ jobs:
           {
             echo "### Build ${NEXT:-not chosen} of ${MARKETING_VERSION:-unknown}"
             echo "- commit $GITHUB_SHA"
-            echo "- validate: $VALIDATED"
             if [ "$UPLOAD" = true ]; then
+              echo "- validate: $VALIDATED"
               echo "- upload: $UPLOADED"
               echo "- tag build/${MARKETING_VERSION:-unknown}-${NEXT:-none}: $TAGGED"
               echo "- release to testers: $RELEASED"
             else
-              echo "- validated only: nothing was uploaded and no build number was used"
+              echo "- validate-only run: validate $VALIDATED; nothing was uploaded and no build number was used"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
