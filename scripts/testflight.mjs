@@ -20,11 +20,24 @@
 //       Adds the build to those groups, writes --notes as What to Test, and submits the
 //       build for Beta App Review when App Store Connect says it is ready for that.
 //       An internal group takes every build by itself and needs none of this.
+//
+// `release` also writes its outcome to GITHUB_STEP_SUMMARY when that is set, so the run's
+// summary says where the build stands and which step, if any, is left to do by hand.
 import { createSign } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.error(...a);
+
+function summary(text) {
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${text}\n`);
+}
+
+// Logs a line and adds it to the summary as a list item.
+function report(line) {
+  log(line);
+  summary(`- ${line}`);
+}
 
 function token() {
   const { ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH } = process.env;
@@ -108,17 +121,18 @@ async function waitForValid(appId, number) {
 
 async function answerCompliance(build) {
   if (build.attributes.usesNonExemptEncryption !== null) {
-    log(`export compliance: already answered (${build.attributes.usesNonExemptEncryption})`);
+    report(`export compliance: already answered (${build.attributes.usesNonExemptEncryption})`);
     return;
   }
   if (process.env.EXPORT_COMPLIANCE_EXEMPT !== 'true') {
-    log('export compliance: NOT answered. No tester gets this build until it is.');
+    report('export compliance: NOT answered. No tester gets this build until it is. ' +
+      'Manual step: answer it in App Store Connect.');
     return;
   }
   await api('PATCH', `/v1/builds/${build.id}`, {
     data: { type: 'builds', id: build.id, attributes: { usesNonExemptEncryption: false } },
   });
-  log('export compliance: answered, no non-exempt encryption');
+  report('export compliance: answered, no non-exempt encryption');
 }
 
 async function writeNotes(build, notes) {
@@ -144,7 +158,7 @@ async function distributeExternally(appId, build, notes) {
   const wanted = (process.env.TESTFLIGHT_EXTERNAL_GROUPS ?? '')
     .split(',').map((s) => s.trim()).filter(Boolean);
   if (wanted.length === 0) {
-    log('external groups: none named, internal testers only');
+    report('external groups: none named, internal testers only');
     return;
   }
   const groups = (await api('GET', `/v1/betaGroups?filter[app]=${appId}&limit=200&fields[betaGroups]=name`)).data;
@@ -157,13 +171,13 @@ async function distributeExternally(appId, build, notes) {
     await api('POST', `/v1/betaGroups/${group.id}/relationships/builds`, {
       data: [{ type: 'builds', id: build.id }],
     });
-    log(`group "${name}": holds build ${build.attributes.version}`);
+    report(`group "${name}": holds build ${build.attributes.version}`);
   }
 
   const detail = await api('GET', `/v1/builds/${build.id}/buildBetaDetail`);
   const state = detail.data.attributes.externalBuildState;
   if (state !== 'READY_FOR_BETA_SUBMISSION') {
-    log(`Beta App Review: not submitted, externalBuildState is ${state}`);
+    report(`Beta App Review: not submitted, externalBuildState is ${state}` + reviewNext(state));
     return;
   }
   await api('POST', '/v1/betaAppReviewSubmissions', {
@@ -172,10 +186,22 @@ async function distributeExternally(appId, build, notes) {
       relationships: { build: { data: { type: 'builds', id: build.id } } },
     },
   });
-  log('Beta App Review: submitted');
+  report('Beta App Review: submitted');
+}
+
+// What an externalBuildState other than READY_FOR_BETA_SUBMISSION leaves to do.
+function reviewNext(state) {
+  if (['BETA_APPROVED', 'READY_FOR_BETA_TESTING', 'IN_BETA_TESTING'].includes(state)) {
+    return '. Already approved, nothing to do.';
+  }
+  if (['WAITING_FOR_BETA_REVIEW', 'IN_BETA_REVIEW'].includes(state)) {
+    return '. Already submitted, waiting on Apple.';
+  }
+  return '. Manual step: resolve that state in App Store Connect, then submit the build for Beta App Review.';
 }
 
 async function release(bundleId, number, notes) {
+  summary(`### Release to testers: build ${number}`);
   const appId = await findApp(bundleId);
   const build = await waitForValid(appId, number);
   await answerCompliance(build);
@@ -195,5 +221,9 @@ try {
   }
 } catch (error) {
   log(`error: ${error.message}`);
+  if (command === 'release') {
+    summary('- **Failed.** The build is uploaded. Manual step: finish what is not listed above ' +
+      'in App Store Connect, and do not upload this build again.\n\n```\n' + error.message + '\n```');
+  }
   process.exit(1);
 }

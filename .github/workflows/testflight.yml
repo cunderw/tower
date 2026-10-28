@@ -194,6 +194,7 @@ jobs:
           check CFBundleVersion "$NEXT"
 
       - name: Validate
+        id: validate
         run: |
           xcrun altool --validate-app -f "$IPA" -t ios \
             --api-key "$ASC_KEY_ID" --api-issuer "$ASC_ISSUER_ID" \
@@ -201,6 +202,7 @@ jobs:
           grep -q 'VERIFY SUCCEEDED' "$OUT/validate.log"
 
       - name: Upload
+        id: upload
         if: env.UPLOAD == 'true'
         run: |
           xcrun altool --upload-app -f "$IPA" -t ios \
@@ -210,6 +212,7 @@ jobs:
 
       # The tag is the record of which commit a build number came from.
       - name: Tag the commit
+        id: tag
         if: env.UPLOAD == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -218,6 +221,7 @@ jobs:
             -f ref="refs/tags/build/$MARKETING_VERSION-$NEXT" -f sha="$GITHUB_SHA" --silent
 
       - name: Release to testers
+        id: release
         if: env.UPLOAD == 'true'
         env:
           EXPORT_COMPLIANCE_EXEMPT: ${{ vars.EXPORT_COMPLIANCE_EXEMPT }}
@@ -228,13 +232,27 @@ jobs:
           node scripts/testflight.mjs release "$PRODUCT_BUNDLE_IDENTIFIER" "$NEXT" \
             --notes "$(head -1 <<< "$NOTES")"
 
+      # The release step writes its own section above this one: each group, and Beta App
+      # Review or the manual step left.
       - name: Summary
         if: always()
+        env:
+          VALIDATED: ${{ steps.validate.outcome }}
+          UPLOADED: ${{ steps.upload.outcome }}
+          TAGGED: ${{ steps.tag.outcome }}
+          RELEASED: ${{ steps.release.outcome }}
         run: |
           {
-            echo "Build ${NEXT:-not chosen} of ${MARKETING_VERSION:-unknown}, commit $GITHUB_SHA."
-            if [ "$UPLOAD" = true ]; then echo "Uploaded if the Upload step is green."
-            else echo "Validated only. Nothing was uploaded and no build number was used."; fi
+            echo "### Build ${NEXT:-not chosen} of ${MARKETING_VERSION:-unknown}"
+            echo "- commit $GITHUB_SHA"
+            echo "- validate: $VALIDATED"
+            if [ "$UPLOAD" = true ]; then
+              echo "- upload: $UPLOADED"
+              echo "- tag build/${MARKETING_VERSION:-unknown}-${NEXT:-none}: $TAGGED"
+              echo "- release to testers: $RELEASED"
+            else
+              echo "- validated only: nothing was uploaded and no build number was used"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove the key and the keychain
