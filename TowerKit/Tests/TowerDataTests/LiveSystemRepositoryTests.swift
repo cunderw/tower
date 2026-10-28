@@ -263,6 +263,48 @@ private func makeDashboardRepository(
   #expect(snapshot.array.state == "STARTED")
 }
 
+@Test func dashboardReadsACountsQueryWithIntactDataAndAnErrorAsUnavailable() async throws {
+  // Data alone is not enough: an error beside it means the server could not
+  // answer for that service in full, so the row is not a reading to show.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-counts-data-and-error.test",
+    containers: #"""
+    {"data": {"docker": {"__typename": "Docker", "containers": [
+      {"__typename": "DockerContainer", "id": "c1", "state": "RUNNING"}
+    ]}},
+     "errors": [{"message": "Failed to read container sizes", "path": ["docker", "containers", 0]}]}
+    """#,
+    vms: #"""
+    {"data": {"vms": {"__typename": "Vms", "domains": [
+      {"__typename": "VmDomain", "id": "v1", "state": "RUNNING"}
+    ]}},
+     "errors": [{"message": "Failed to read one domain", "path": ["vms", "domains", 0]}]}
+    """#
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.containersSummary == "Unavailable")
+  #expect(snapshot.services.vmsSummary == "Unavailable")
+}
+
+@Test func dashboardThrowsRatherThanLoadingWhenItsTaskIsCancelled() async {
+  // A swallowed cancellation in a counts query must not come back as a loaded
+  // snapshot with both rows "Unavailable": a torn-down poll would write that
+  // over the store's cancelled state. The task cancels itself before calling,
+  // so whatever the stubs answer, `dashboard()` has to notice and throw.
+  let repository = makeDashboardRepository(host: "stub-dashboard-cancelled.test")
+
+  let result = await Task {
+    withUnsafeCurrentTask { $0?.cancel() }
+    return try await repository.dashboard()
+  }.result
+
+  if case .success(let snapshot) = result {
+    Issue.record("a cancelled dashboard() loaded: \(snapshot.services)")
+  }
+}
+
 @Test func dashboardStillThrowsACoreErrorWhenTheCountsQueriesSucceed() async throws {
   // Only the two counts queries degrade. Any error on the core query fails the
   // load with its message, even when its data is otherwise intact.
