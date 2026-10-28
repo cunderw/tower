@@ -191,7 +191,7 @@ final class DockerUITests: XCTestCase {
   /// is a claim about a server Tower cannot read, and not the generic error
   /// screen, which reads as a fault to diagnose. Mirrors
   /// `VMUITests.testUnavailableStateDoesNotClaimTheServerHasNoVMs`.
-  func testUnavailableStateDoesNotClaimTheServerHasNoContainers() {
+  func testUnavailableStateDoesNotClaimTheServerHasNoContainers() throws {
     let app = launchOnDocker(state: "unavailable")
 
     let unavailable = app.descendants(matching: .any)
@@ -206,6 +206,7 @@ final class DockerUITests: XCTestCase {
       "a stopped Docker service was shown as the generic error screen"
     )
     XCTAssertTrue(app.buttons["docker.retry"].exists, "the unavailable state lost its Try Again button")
+    try saveScreenshot(named: "docker-unavailable")
   }
 
   // MARK: - Mutations
