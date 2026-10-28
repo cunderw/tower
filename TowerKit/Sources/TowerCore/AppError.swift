@@ -17,6 +17,13 @@ public enum AppError: Error, Equatable, Sendable {
   /// `.unknown` would put `String(describing:)` noise in front of a user who
   /// needs one fact: the thing they pressed did not happen.
   case actionRefused(String)
+  /// An optional Unraid service, named by the associated value, that is
+  /// disabled or stopped, so the server cannot answer for it at all. Docker
+  /// is the one that throws it today: with the service off, the containers
+  /// resolver fails with "Docker socket unavailable.". Named for the
+  /// condition rather than for Docker, for the reason `actionRefused`'s
+  /// recovery text gives.
+  case serviceUnavailable(String)
   /// A load the user (or a superseding request) cancelled.
   ///
   /// Deliberately a failure rather than a return to `.idle`: every screen already
@@ -47,6 +54,8 @@ public enum AppError: Error, Equatable, Sendable {
       "The server sent something Tower couldn't read. \(detail)"
     case .actionRefused(let detail):
       detail
+    case .serviceUnavailable(let service):
+      "\(service) isn't available on this server."
     case .cancelled:
       "Cancelled."
     case .unknown(let detail):
@@ -82,6 +91,8 @@ public enum AppError: Error, Equatable, Sendable {
       // with a username and password, and `ProwlarrRepository` throw it too,
       // which is why the message says "or password".
       "It may already be in that state, or this API key or password may not have permission for that action."
+    case .serviceUnavailable:
+      "It may be disabled or stopped. Start it in Unraid, then try again."
     case .cancelled:
       "Tap Try Again when you're ready."
     case .graphQL, .decoding, .unknown:

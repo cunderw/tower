@@ -96,13 +96,28 @@ struct DockerListView: View {
       // for why the retry button is a sibling of `ContentUnavailableView`
       // rather than passed as its `actions:` closure.
       VStack(spacing: 16) {
-        ContentUnavailableView {
-          Label(error.message, systemImage: "exclamationmark.triangle")
-        } description: {
-          if let suggestion = error.recoverySuggestion { Text(suggestion) }
+        if case .serviceUnavailable = error {
+          // The Docker service is off. Its own state, worded like
+          // `VMListView`'s `vms.unavailable`, not the generic error screen:
+          // nothing went wrong that the user needs to diagnose, and not "No
+          // Containers", which would be a claim about a server Tower cannot
+          // read. A failure, not an empty list, because `Docker.containers`
+          // is non-null and the server can only say this by throwing.
+          ContentUnavailableView(
+            "Docker Unavailable",
+            systemImage: "shippingbox",
+            description: Text("This server isn't reporting Docker containers. The Docker service may be disabled or stopped.")
+          )
+          .accessibilityIdentifier("docker.unavailable")
+        } else {
+          ContentUnavailableView {
+            Label(error.message, systemImage: "exclamationmark.triangle")
+          } description: {
+            if let suggestion = error.recoverySuggestion { Text(suggestion) }
+          }
+          .accessibilityElement(children: .combine)
+          .accessibilityIdentifier("docker.error")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("docker.error")
 
         Button("Try Again") { Task { await store.load() } }
           .accessibilityIdentifier("docker.retry")

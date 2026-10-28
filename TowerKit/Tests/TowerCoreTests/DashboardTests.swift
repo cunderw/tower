@@ -67,6 +67,26 @@ struct ServiceCountsTests {
     #expect(counts.vmsSummary == "Unavailable")
   }
 
+  /// Same distinction for Docker: nil counts mean the Docker service is off
+  /// and its counts query failed, which must not read as "0 of 0 running".
+  @Test func containersSummaryReportsUnavailableWhenCountsAreNil() {
+    let counts = ServiceCounts(
+      containersRunning: nil, containersTotal: nil,
+      vmsRunning: 0, vmsTotal: 0,
+      sharesTotal: 0
+    )
+    #expect(counts.containersSummary == "Unavailable")
+  }
+
+  @Test func containersSummaryReportsZeroCountsWhenGenuinelyZero() {
+    let counts = ServiceCounts(
+      containersRunning: 0, containersTotal: 0,
+      vmsRunning: 0, vmsTotal: 0,
+      sharesTotal: 0
+    )
+    #expect(counts.containersSummary == "0 of 0 running")
+  }
+
   /// A healthy server with no VMs defined reports real zeros, which must
   /// still read as "0 of 0 running" — distinct from the nil case above.
   @Test func vmsSummaryReportsZeroCountsWhenGenuinelyZero() {

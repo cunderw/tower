@@ -1,0 +1,8 @@
+query DashboardVMs {
+  vms {
+    domains {
+      id
+      state
+    }
+  }
+}

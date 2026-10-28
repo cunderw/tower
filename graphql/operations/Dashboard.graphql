@@ -94,18 +94,6 @@ query Dashboard {
       total
     }
   }
-  docker {
-    containers {
-      id
-      state
-    }
-  }
-  vms {
-    domains {
-      id
-      state
-    }
-  }
   shares {
     id
   }

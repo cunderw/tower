@@ -67,6 +67,12 @@ import Testing
   #expect(suggestion?.contains("VM") == false)
 }
 
+@Test func serviceUnavailableNamesTheServiceAndHowToRecover() {
+  let error = AppError.serviceUnavailable("Docker")
+  #expect(error.message == "Docker isn't available on this server.")
+  #expect(error.recoverySuggestion == "It may be disabled or stopped. Start it in Unraid, then try again.")
+}
+
 @Test func actionRefusedIsNotConflatedWithUnknown() {
   // The distinction the case exists for: a refusal is a specific, explainable
   // outcome, and collapsing it into `.unknown` would have put
