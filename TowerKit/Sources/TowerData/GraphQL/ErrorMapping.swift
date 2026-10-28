@@ -60,8 +60,10 @@ extension GraphQLError {
 }
 
 extension Array where Element == GraphQLError {
-  /// The errors left after dropping the ones the response already
-  /// expresses as a null `vms.domains`.
+  /// The errors left after dropping the ones under `vms.domains`, which the
+  /// data already expresses as nulls: the whole list when the resolver
+  /// throws (the VM manager disabled case), or a nullable field of one
+  /// domain (`vms.domains.N.name`), which leaves `domains` non-null.
   ///
   /// With the VM manager disabled, Unraid's `domains` resolver throws
   /// ("Failed to retrieve VM domains: …"). `Vms.domains` is nullable, so the
