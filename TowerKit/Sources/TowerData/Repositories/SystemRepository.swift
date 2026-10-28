@@ -55,11 +55,19 @@ public struct LiveSystemRepository: SystemRepositoryProtocol {
     guard let data = response.data else {
       throw AppError.decoding("Empty response for Dashboard.")
     }
-    return await DashboardSnapshot(from: data, containers: containers, vms: vms)
+    let counts = await (containers: containers, vms: vms)
+    // `serviceCounts` swallows a cancellation along with every other error,
+    // so a load cancelled while the counts were in flight would otherwise
+    // come back as a snapshot whose rows read "Unavailable", and land over the
+    // store's cancelled state.
+    try Task.checkCancellation()
+    return DashboardSnapshot(from: data, containers: counts.containers, vms: counts.vms)
   }
 
   /// One optional row's counts, or `nil` for "Unavailable". Never throws:
-  /// a thrown error, any `errors` entry, or missing data all give `nil`.
+  /// a thrown error, any `errors` entry, or missing data all give `nil`. A
+  /// cancellation is swallowed too, which is why `dashboard()` checks for one
+  /// itself after awaiting these.
   ///
   /// Auth errors included. The core query ran with the same key, and it
   /// either succeeded, which proves the key is valid, or it threw, in which
