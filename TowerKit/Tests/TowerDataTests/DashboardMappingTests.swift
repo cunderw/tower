@@ -5,8 +5,10 @@ import TowerAPITestMocks
 @testable import TowerData
 import TowerCore
 
-// These tests exercise `DashboardSnapshot.init(from:)`, the Apollo → domain
-// mapping behind `LiveSystemRepository.dashboard()`. See
+// These tests exercise `DashboardSnapshot.init(from:containers:vms:)`, the
+// Apollo → domain mapping behind `LiveSystemRepository.dashboard()`, through
+// `dashboardSnapshot(from:)` below, which maps one `Query` mock through the
+// core query and both counts queries as `dashboard()` does. See
 // `SystemRepositoryTests.swift` for why these two files split the mapping
 // coverage, and for the fuller explanation of why Apollo's generated
 // `Mock<O>` graph (via `RootSelectionSet.from(_:)`) is used here instead of
@@ -206,7 +208,7 @@ func dashboardSnapshot(from mock: Mock<TowerAPITestMocks.Query>) async -> Dashbo
   // itself, so every share on the same pool returns a byte-identical value
   // and summing across shares multiplies each pool's total by its share
   // count, which can produce a "usage" figure several times the array's
-  // size. See `ServiceCounts.init(from:)`.
+  // size. See `ServiceCounts.init(from:containers:vms:)`.
   let mock = makeQuery(
     array: emptyArray(),
     docker: emptyDocker(),

@@ -37,7 +37,8 @@ extension AppError {
   ///
   /// Deliberately **not** public: `GraphQLError` is an Apollo type, and
   /// TowerData's boundary rule is that Apollo types never appear in a public
-  /// signature (see the non-public `DashboardSnapshot.init(from:)` in
+  /// signature (see the non-public
+  /// `DashboardSnapshot.init(from:containers:vms:)` in
   /// `SystemRepository.swift`, for the same reason).
   static func from(graphQLErrors errors: [GraphQLError]) -> AppError {
     // A mixed batch (one auth error alongside an unrelated GraphQL error) is

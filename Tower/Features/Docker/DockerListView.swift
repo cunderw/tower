@@ -94,7 +94,14 @@ struct DockerListView: View {
     case .failed(let error):
       // Same shape as `DashboardView`'s error branch — see its doc comment
       // for why the retry button is a sibling of `ContentUnavailableView`
-      // rather than passed as its `actions:` closure.
+      // rather than passed as its `actions:` closure. A sibling also keeps
+      // `docker.retry`, which `ContentUnavailableView` would overwrite with
+      // its own identifier.
+      //
+      // Each `ContentUnavailableView` is `fixedSize` vertically. Left to
+      // itself it takes all the free height, which pushes the button down
+      // onto the floating tab bar; at its own height the `VStack` centres the
+      // pair instead.
       VStack(spacing: 16) {
         if case .serviceUnavailable = error {
           // The Docker service is off. Its own state, worded like
@@ -108,6 +115,7 @@ struct DockerListView: View {
             systemImage: "shippingbox",
             description: Text("This server isn't reporting Docker containers. The Docker service may be disabled or stopped.")
           )
+          .fixedSize(horizontal: false, vertical: true)
           .accessibilityIdentifier("docker.unavailable")
         } else {
           ContentUnavailableView {
@@ -115,6 +123,7 @@ struct DockerListView: View {
           } description: {
             if let suggestion = error.recoverySuggestion { Text(suggestion) }
           }
+          .fixedSize(horizontal: false, vertical: true)
           .accessibilityElement(children: .combine)
           .accessibilityIdentifier("docker.error")
         }

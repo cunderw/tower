@@ -85,7 +85,8 @@ struct ServiceTally: Equatable, Sendable {
 }
 
 extension DashboardContainersQuery.Data {
-  /// Deliberately **not** public — see `DashboardSnapshot.init(from:)` below.
+  /// Deliberately **not** public — see
+  /// `DashboardSnapshot.init(from:containers:vms:)` below.
   var containerCounts: ServiceTally {
     let containers = docker.containers
     return ServiceTally(running: containers.filter { $0.state == .running }.count, total: containers.count)
@@ -93,7 +94,8 @@ extension DashboardContainersQuery.Data {
 }
 
 extension DashboardVMsQuery.Data {
-  /// Deliberately **not** public — see `DashboardSnapshot.init(from:)` below.
+  /// Deliberately **not** public — see
+  /// `DashboardSnapshot.init(from:containers:vms:)` below.
   ///
   /// `vms.domains` is a nullable list in the schema (`domains: [VmDomain!]`)
   /// — null means VM reporting is unavailable (libvirt stopped or errored),
@@ -118,9 +120,9 @@ extension DashboardVMsQuery.Data {
 /// edit to just one of them.
 ///
 /// Deliberately **not** public, and so are its conformances below — same
-/// reason as `DashboardSnapshot.init(from:)` below: this protocol mentions
-/// Apollo-generated types, which must never leak past this module's
-/// boundary.
+/// reason as `DashboardSnapshot.init(from:containers:vms:)` below: this
+/// protocol mentions Apollo-generated types, which must never leak past this
+/// module's boundary.
 private protocol DashboardDiskFields {
   var id: TowerAPI.PrefixedID { get }
   var idx: Int { get }
@@ -153,8 +155,8 @@ extension ArrayDisk {
   ///
   /// `fileprivate`, not the file's usual bare `init(from:)`: `private`
   /// would restrict this to `ArrayDisk`'s own extensions, but its caller
-  /// (`DashboardSnapshot.init(from:)` below) lives in *that* type's own
-  /// extension in this same file — `fileprivate` is what
+  /// (`DashboardSnapshot.init(from:containers:vms:)` below) lives in *that*
+  /// type's own extension in this same file — `fileprivate` is what
   /// `DashboardDiskFields` being a private parameter type requires.
   fileprivate init(from disk: some DashboardDiskFields) {
     self.init(
@@ -234,7 +236,8 @@ extension DashboardSnapshot {
 }
 
 extension ParityStatus {
-  /// Deliberately **not** public — see `DashboardSnapshot.init(from:)` above.
+  /// Deliberately **not** public — see
+  /// `DashboardSnapshot.init(from:containers:vms:)` above.
   init(from status: DashboardQuery.Data.Array.ParityCheckStatus) {
     self.init(
       state: ParityCheckState(rawValue: status.status.rawValue),
@@ -251,7 +254,8 @@ extension ParityStatus {
 }
 
 extension ServiceCounts {
-  /// Deliberately **not** public — see `DashboardSnapshot.init(from:)` above.
+  /// Deliberately **not** public — see
+  /// `DashboardSnapshot.init(from:containers:vms:)` above.
   init(from data: DashboardQuery.Data, containers: ServiceTally?, vms: ServiceTally?) {
     self.init(
       containersRunning: containers?.running,

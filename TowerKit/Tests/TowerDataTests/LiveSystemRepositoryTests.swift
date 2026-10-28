@@ -5,13 +5,13 @@ import TowerData
 
 // These tests exercise `LiveSystemRepository.dashboard()` and
 // `.testConnection()` end-to-end through a stubbed `URLProtocol`, rather
-// than only through `DashboardSnapshot(from:)` directly (see
+// than only through `DashboardSnapshot(from:containers:vms:)` directly (see
 // `SystemRepositoryTests.swift`/`DashboardMappingTests.swift` for the
 // mapping-focused tests). That is what actually proves the GraphQL-error
-// check and the nil-data guard fire — `DashboardSnapshot.init(from:)` being
-// non-public only matters if the guards wrapping the one remaining path to
-// it (`dashboard()`) are themselves verified, not merely present in the
-// source.
+// check and the nil-data guard fire —
+// `DashboardSnapshot.init(from:containers:vms:)` being non-public only
+// matters if the guards wrapping the one remaining path to it
+// (`dashboard()`) are themselves verified, not merely present in the source.
 //
 // The stub itself lives in `StubURLProtocol.swift`. `ApolloClientProvider`
 // has its own `URLSession`, so the stub is installed in that session's
