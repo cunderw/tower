@@ -187,6 +187,24 @@ private func dashboardResponse(errors: String) -> String {
   }
 }
 
+@Test func dashboardShowsDockerUnavailableWhenTheDockerServiceIsDisabled() async throws {
+  // Issue #10, reproduction against the single-query dashboard: the server's
+  // answer when `Docker.containers` throws "Docker socket unavailable.".
+  let repository = makeRepository(
+    host: "stub-dashboard-docker-disabled-repro.test",
+    json: #"""
+    {"data": null, "errors": [{"message": "Docker socket unavailable.", "path": ["docker", "containers"]}]}
+    """#
+  )
+
+  do {
+    let snapshot = try await repository.dashboard()
+    #expect(snapshot.services.containersSummary == "Unavailable")
+  } catch {
+    Issue.record("dashboard() threw \(error)")
+  }
+}
+
 // MARK: - testConnection()
 
 @Test func testConnectionReturnsTrueWhenPlatformIsPresent() async throws {
