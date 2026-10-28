@@ -8,7 +8,7 @@ nonisolated public struct DashboardQuery: GraphQLQuery {
   public static let operationName: String = "Dashboard"
   public static let operationDocument: ApolloAPI.OperationDocument = .init(
     definition: .init(
-      #"query Dashboard { array { __typename state capacity { __typename kilobytes { __typename free used total } } parityCheckStatus { __typename status correcting progress errors speed date duration } disks { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } parities { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } caches { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } } info { __typename os { __typename distro release uptime } cpu { __typename brand cores threads } } metrics { __typename cpu { __typename percentTotal } memory { __typename percentTotal used total } } docker { __typename containers { __typename id state } } vms { __typename domains { __typename id state } } shares { __typename id } }"#
+      #"query Dashboard { array { __typename state capacity { __typename kilobytes { __typename free used total } } parityCheckStatus { __typename status correcting progress errors speed date duration } disks { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } parities { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } caches { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } } info { __typename os { __typename distro release uptime } cpu { __typename brand cores threads } } metrics { __typename cpu { __typename percentTotal } memory { __typename percentTotal used total } } shares { __typename id } }"#
     ))
 
   public init() {}
@@ -22,8 +22,6 @@ nonisolated public struct DashboardQuery: GraphQLQuery {
       .field("array", Array.self),
       .field("info", Info.self),
       .field("metrics", Metrics.self),
-      .field("docker", Docker.self),
-      .field("vms", Vms.self),
       .field("shares", [Share].self),
     ] }
     @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
@@ -45,20 +43,6 @@ nonisolated public struct DashboardQuery: GraphQLQuery {
     /// - Action: **READ_ANY**
     /// - Resource: **INFO**
     public var metrics: Metrics { __data["metrics"] }
-    /// #### Required Permissions:
-    ///
-    /// - Action: **READ_ANY**
-    /// - Resource: **DOCKER**
-    public var docker: Docker { __data["docker"] }
-    /// #### Required Permissions:
-    ///
-    /// - Action: **READ_ANY**
-    /// - Resource: **VMS**
-    ///
-    /// #### Description:
-    ///
-    /// Get information about all VMs on the system
-    public var vms: Vms { __data["vms"] }
     /// #### Required Permissions:
     ///
     /// - Action: **READ_ANY**
@@ -520,92 +504,6 @@ nonisolated public struct DashboardQuery: GraphQLQuery {
         public var used: TowerAPI.BigInt { __data["used"] }
         /// Total system memory in bytes
         public var total: TowerAPI.BigInt { __data["total"] }
-      }
-    }
-
-    /// Docker
-    ///
-    /// Parent Type: `Docker`
-    nonisolated public struct Docker: TowerAPI.SelectionSet {
-      @_spi(Unsafe) public let __data: DataDict
-      @_spi(Unsafe) public init(_dataDict: DataDict) { __data = _dataDict }
-
-      @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.Docker }
-      @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
-        .field("__typename", String.self),
-        .field("containers", [Container].self),
-      ] }
-      @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
-        DashboardQuery.Data.Docker.self
-      ] }
-
-      /// #### Required Permissions:
-      ///
-      /// - Action: **READ_ANY**
-      /// - Resource: **DOCKER**
-      public var containers: [Container] { __data["containers"] }
-
-      /// Docker.Container
-      ///
-      /// Parent Type: `DockerContainer`
-      nonisolated public struct Container: TowerAPI.SelectionSet {
-        @_spi(Unsafe) public let __data: DataDict
-        @_spi(Unsafe) public init(_dataDict: DataDict) { __data = _dataDict }
-
-        @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.DockerContainer }
-        @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
-          .field("__typename", String.self),
-          .field("id", TowerAPI.PrefixedID.self),
-          .field("state", GraphQLEnum<TowerAPI.ContainerState>.self),
-        ] }
-        @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
-          DashboardQuery.Data.Docker.Container.self
-        ] }
-
-        public var id: TowerAPI.PrefixedID { __data["id"] }
-        public var state: GraphQLEnum<TowerAPI.ContainerState> { __data["state"] }
-      }
-    }
-
-    /// Vms
-    ///
-    /// Parent Type: `Vms`
-    nonisolated public struct Vms: TowerAPI.SelectionSet {
-      @_spi(Unsafe) public let __data: DataDict
-      @_spi(Unsafe) public init(_dataDict: DataDict) { __data = _dataDict }
-
-      @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.Vms }
-      @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
-        .field("__typename", String.self),
-        .field("domains", [Domain]?.self),
-      ] }
-      @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
-        DashboardQuery.Data.Vms.self
-      ] }
-
-      public var domains: [Domain]? { __data["domains"] }
-
-      /// Vms.Domain
-      ///
-      /// Parent Type: `VmDomain`
-      nonisolated public struct Domain: TowerAPI.SelectionSet {
-        @_spi(Unsafe) public let __data: DataDict
-        @_spi(Unsafe) public init(_dataDict: DataDict) { __data = _dataDict }
-
-        @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.VmDomain }
-        @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
-          .field("__typename", String.self),
-          .field("id", TowerAPI.PrefixedID.self),
-          .field("state", GraphQLEnum<TowerAPI.VmState>.self),
-        ] }
-        @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
-          DashboardQuery.Data.Vms.Domain.self
-        ] }
-
-        /// The unique identifier for the vm (uuid)
-        public var id: TowerAPI.PrefixedID { __data["id"] }
-        /// Current domain vm state
-        public var state: GraphQLEnum<TowerAPI.VmState> { __data["state"] }
       }
     }
 

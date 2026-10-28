@@ -3,7 +3,8 @@ import Testing
 import TowerCore
 import TowerData
 
-// Proves `LiveDockerRepository.containers()` end to end against a real
+// `LiveDockerRepositoryTests`, the suite at the bottom, proves
+// `LiveDockerRepository.containers()` end to end against a real
 // Unraid GraphQL API, following `LiveSystemRepositoryTests.swift`'s
 // `LiveServerCredentials`/`.enabled(if:)` pattern — opt-in only, reported as
 // *skipped* (not passed or failed) whenever `UNRAID_URL`/`UNRAID_API_KEY`
@@ -13,13 +14,67 @@ import TowerData
 // cd TowerKit && swift test --filter LiveDockerRepositoryTests
 // ```
 //
-// `LiveDockerRepository` has no error/decoding-guard tests of its own here —
-// that behavior is structurally identical to `LiveSystemRepository`'s (same
-// `.networkOnly`/errors-check/nil-data-guard shape), and already proven via
-// `URLProtocol` stubbing in `LiveSystemRepositoryTests.swift`; duplicating
-// that stub harness per repository would test the same code path twice, not
-// two different behaviors. This file adds only what stubbing can't prove:
-// that the real query and mapping succeed against the actual server.
+// The stubbed tests at the top cover the one error mapping `containers()` has
+// that `LiveSystemRepository` does not: an error at exactly
+// `docker.containers` means the Docker service is off (issue #10). Its plain
+// errors-check/nil-data-guard shape is the same as `LiveSystemRepository`'s,
+// already proven in `LiveSystemRepositoryTests.swift`, and is not repeated.
+// The live suite adds what stubbing can't prove: that the real query and
+// mapping succeed against the actual server.
+
+/// A `LiveDockerRepository` whose endpoint answers `json` to every request.
+/// `host` must be unique per test — see `StubURLProtocol`.
+private func makeStubbedRepository(host: String, json: String) -> LiveDockerRepository {
+  let endpoint = URL(string: "http://\(host)/graphql")!
+  StubURLProtocol.stub(url: endpoint, json: json)
+  let server = Server(name: "Stub", url: URL(string: "http://\(host)")!, apiKey: "test-key")
+  return LiveDockerRepository(provider: ApolloClientProvider(server: server, sessionConfiguration: StubURLProtocol.configuration()))
+}
+
+/// The `AppError` `containers()` throws for `json`, or `nil` if it returned.
+private func containersError(host: String, json: String) async -> AppError? {
+  do {
+    _ = try await makeStubbedRepository(host: host, json: json).containers()
+    return nil
+  } catch {
+    return error as? AppError
+  }
+}
+
+@Test func containersReportsDockerUnavailableForAnErrorAtTheContainersField() async {
+  // What the server sends with the Docker service off. The tab shows "Docker
+  // Unavailable" for this case instead of the generic error screen.
+  let error = await containersError(
+    host: "stub-docker-unavailable.test",
+    json: #"""
+    {"data": null, "errors": [{"message": "Docker socket unavailable.", "path": ["docker", "containers"]}]}
+    """#
+  )
+  #expect(error == .serviceUnavailable("Docker"))
+}
+
+@Test func containersStillReportsAForbiddenContainersFieldAsUnauthorized() async {
+  // An auth error at the same path is a key problem, not a disabled service.
+  let error = await containersError(
+    host: "stub-docker-containers-forbidden.test",
+    json: #"""
+    {"data": null, "errors": [{"message": "Forbidden resource", "path": ["docker", "containers"], "extensions": {"code": "FORBIDDEN"}}]}
+    """#
+  )
+  #expect(error == .unauthorized)
+}
+
+@Test func containersReportsAnErrorBelowTheContainersFieldAsGraphQL() async {
+  // One container's field failing is not the service being off. The path is
+  // matched exactly, not by its `docker.containers` prefix.
+  let error = await containersError(
+    host: "stub-docker-container-field-error.test",
+    json: #"""
+    {"data": null, "errors": [{"message": "Failed to read name", "path": ["docker", "containers", 0, "name"]}]}
+    """#
+  )
+  #expect(error == .graphQL(["Failed to read name"]))
+}
 
 private enum LiveServerCredentials {
   static var server: Server? {

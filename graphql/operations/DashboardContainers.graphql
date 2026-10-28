@@ -1,0 +1,8 @@
+query DashboardContainers {
+  docker {
+    containers {
+      id
+      state
+    }
+  }
+}

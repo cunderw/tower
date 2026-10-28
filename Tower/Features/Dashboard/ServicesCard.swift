@@ -76,6 +76,26 @@ struct ServicesCard: View {
   }
 }
 
+/// Docker reporting unavailable (the Docker service off, its counts query
+/// failed) — `containersRunning`/`containersTotal` nil. See
+/// `ServiceCounts.containersSummary`.
+#Preview("Docker unavailable") {
+  ZStack {
+    Color(.systemGroupedBackground).ignoresSafeArea()
+    ScrollView {
+      ServicesCard(
+        counts: ServiceCounts(
+          containersRunning: nil, containersTotal: nil,
+          vmsRunning: 2, vmsTotal: 3,
+          sharesTotal: 9
+        ),
+        onSelect: { _ in }
+      )
+      .padding()
+    }
+  }
+}
+
 #Preview("Accessibility Size (AX5)") {
   ZStack {
     Color(.systemGroupedBackground).ignoresSafeArea()

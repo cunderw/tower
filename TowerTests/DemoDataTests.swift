@@ -84,9 +84,9 @@ struct DemoDataTests {
     let docker = DemoDockerRepository(server: server)
     let system = DemoSystemRepository(server: server)
 
-    // `containersRunning` is non-optional in `ServiceCounts` — unlike
-    // `vmsRunning`, which keeps "no VM service" (nil) apart from zero.
-    let before = try await system.dashboard().services.containersRunning
+    // `containersRunning` is optional, nil for a Docker service that is off.
+    // The demo server always reports Docker, so a nil here is a failure.
+    let before = try #require(try await system.dashboard().services.containersRunning)
     let running = try #require(try await docker.containers().first(where: \.isRunning))
     _ = try await docker.stop(id: running.id)
 

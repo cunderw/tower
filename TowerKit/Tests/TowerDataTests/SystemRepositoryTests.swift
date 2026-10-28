@@ -5,8 +5,10 @@ import TowerAPITestMocks
 @testable import TowerData
 import TowerCore
 
-// These tests exercise `DashboardSnapshot.init(from:)`, the Apollo → domain
-// mapping behind `LiveSystemRepository.dashboard()`. Kept alongside
+// These tests exercise `DashboardSnapshot.init(from:containers:vms:)`, the
+// Apollo → domain mapping behind `LiveSystemRepository.dashboard()`, through
+// `dashboardSnapshot(from:)` in `DashboardMappingTests.swift`, which maps one
+// `Query` mock through all three dashboard queries. Kept alongside
 // `DashboardMappingTests.swift` rather than folded into it: that file's tests
 // focus on IO/filesystem fields, disk sort order, parity status, and service
 // counts, and none of them assert `state`/`capacity`/`system` together as one
@@ -81,8 +83,7 @@ private func neverRunParityCheck() -> Mock<TowerAPITestMocks.ParityCheck> {
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   #expect(snapshot.array.state == "STARTED")
   #expect(snapshot.array.isStarted)
@@ -113,8 +114,7 @@ private func neverRunParityCheck() -> Mock<TowerAPITestMocks.ParityCheck> {
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   // A regression that defaults an unparseable capacity to
   // `ArrayCapacity(free: 0, used: 0, total: 0)` instead of `nil` would
@@ -152,8 +152,7 @@ private func neverRunParityCheck() -> Mock<TowerAPITestMocks.ParityCheck> {
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let mapped = try #require(DashboardSnapshot(from: data).array.disks.first)
+  let mapped = try #require(await dashboardSnapshot(from: mock).array.disks.first)
 
   #expect(mapped.id == "d1")
   #expect(mapped.displayName == "disk1")
@@ -196,8 +195,7 @@ private func neverRunParityCheck() -> Mock<TowerAPITestMocks.ParityCheck> {
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   let parity = try #require(snapshot.array.parities.first)
   #expect(parity.id == "p1")

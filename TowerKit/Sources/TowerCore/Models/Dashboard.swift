@@ -63,20 +63,28 @@ public struct ParityStatus: Equatable, Sendable {
 }
 
 public struct ServiceCounts: Equatable, Sendable {
-  public let containersRunning: Int
-  public let containersTotal: Int
+  /// `nil` means Docker reporting is unavailable — the Docker service is
+  /// disabled or stopped, and its counts query failed — not "zero containers".
+  /// `Docker.containers` is non-null in the schema, so the server cannot say
+  /// this with a null list the way it does for VMs: its resolver throws
+  /// ("Docker socket unavailable.") and the dashboard's separate counts query
+  /// fails instead. A healthy server with no containers reports `0`/`0`; only
+  /// a failed reading reports `nil`/`nil`. See `containersSummary`.
+  public let containersRunning: Int?
+  public let containersTotal: Int?
   /// `nil` means VM reporting is unavailable — libvirt stopped, errored, or
-  /// otherwise not returning `vms.domains` — not "zero VMs configured".
-  /// `domains` is a nullable list in the schema (`[VmDomain!]`), unlike
-  /// `Docker.containers`/`shares`, which are non-null and so can never carry
-  /// this ambiguity. A healthy server with no VMs defined reports `0`/`0`;
-  /// only an actually-missing reading reports `nil`/`nil`. See `vmsSummary`.
+  /// otherwise not returning `vms.domains` — not "zero VMs configured". The
+  /// server reports that as a null `domains` (a nullable list in the schema,
+  /// `[VmDomain!]`) alongside an error, and the dashboard's VM counts query
+  /// treats either as unavailable. A healthy server with no VMs defined
+  /// reports `0`/`0`; only an actually-missing reading reports `nil`/`nil`.
+  /// See `vmsSummary`.
   public let vmsRunning: Int?
   public let vmsTotal: Int?
   public let sharesTotal: Int
 
   public init(
-    containersRunning: Int, containersTotal: Int,
+    containersRunning: Int?, containersTotal: Int?,
     vmsRunning: Int?, vmsTotal: Int?,
     sharesTotal: Int
   ) {
@@ -87,7 +95,12 @@ public struct ServiceCounts: Equatable, Sendable {
     self.sharesTotal = sharesTotal
   }
 
-  public var containersSummary: String { "\(containersRunning) of \(containersTotal) running" }
+  /// "Unavailable" rather than "0 of 0 running" when the counts are nil, for
+  /// the reason `vmsSummary` gives.
+  public var containersSummary: String {
+    guard let containersRunning, let containersTotal else { return "Unavailable" }
+    return "\(containersRunning) of \(containersTotal) running"
+  }
 
   /// "Unavailable" rather than "0 of 0 running" when `vmsRunning`/`vmsTotal`
   /// are nil — the latter is exactly what a healthy, VM-less server also
@@ -100,7 +113,9 @@ public struct ServiceCounts: Equatable, Sendable {
   public var sharesSummary: String { Formatters.count(sharesTotal, "share") }
 }
 
-/// Everything one dashboard refresh needs, from one query.
+/// Everything one dashboard refresh needs: a core query that must succeed, plus
+/// the Docker and VM counts, fetched separately so a disabled service reads as
+/// unavailable instead of failing the whole dashboard.
 public struct DashboardSnapshot: Equatable, Sendable {
   public let array: ArrayStatus
   public let parity: ParityStatus

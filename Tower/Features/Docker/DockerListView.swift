@@ -94,15 +94,39 @@ struct DockerListView: View {
     case .failed(let error):
       // Same shape as `DashboardView`'s error branch — see its doc comment
       // for why the retry button is a sibling of `ContentUnavailableView`
-      // rather than passed as its `actions:` closure.
+      // rather than passed as its `actions:` closure. A sibling also keeps
+      // `docker.retry`, which `ContentUnavailableView` would overwrite with
+      // its own identifier.
+      //
+      // Each `ContentUnavailableView` is `fixedSize` vertically. Left to
+      // itself it takes all the free height, which pushes the button down
+      // onto the floating tab bar; at its own height the `VStack` centres the
+      // pair instead.
       VStack(spacing: 16) {
-        ContentUnavailableView {
-          Label(error.message, systemImage: "exclamationmark.triangle")
-        } description: {
-          if let suggestion = error.recoverySuggestion { Text(suggestion) }
+        if case .serviceUnavailable = error {
+          // The Docker service is off. Its own state, worded like
+          // `VMListView`'s `vms.unavailable`, not the generic error screen:
+          // nothing went wrong that the user needs to diagnose, and not "No
+          // Containers", which would be a claim about a server Tower cannot
+          // read. A failure, not an empty list, because `Docker.containers`
+          // is non-null and the server can only say this by throwing.
+          ContentUnavailableView(
+            "Docker Unavailable",
+            systemImage: "shippingbox",
+            description: Text("This server isn't reporting Docker containers. The Docker service may be disabled or stopped.")
+          )
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityIdentifier("docker.unavailable")
+        } else {
+          ContentUnavailableView {
+            Label(error.message, systemImage: "exclamationmark.triangle")
+          } description: {
+            if let suggestion = error.recoverySuggestion { Text(suggestion) }
+          }
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityElement(children: .combine)
+          .accessibilityIdentifier("docker.error")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("docker.error")
 
         Button("Try Again") { Task { await store.load() } }
           .accessibilityIdentifier("docker.retry")

@@ -45,6 +45,16 @@ public struct LiveDockerRepository: DockerRepositoryProtocol {
       cachePolicy: .networkOnly
     )
     if let errors = response.errors, !errors.isEmpty {
+      // With the Docker service off, the `containers` resolver itself throws
+      // ("Docker socket unavailable."), so its error sits at exactly this
+      // path. Matched exactly, not by the `docker` prefix, which would also
+      // take in a failure of one container's field (`docker.containers.0.name`)
+      // and every mutation's `docker.start`, none of which mean the service is
+      // off. An auth error still wins, as `from(graphQLErrors:)` says.
+      if !errors.contains(where: \.isAuthFailure),
+         errors.contains(where: { $0.path == [.field("docker"), .field("containers")] }) {
+        throw AppError.serviceUnavailable("Docker")
+      }
       throw AppError.from(graphQLErrors: errors)
     }
     guard let data = response.data else {

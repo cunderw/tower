@@ -5,8 +5,10 @@ import TowerAPITestMocks
 @testable import TowerData
 import TowerCore
 
-// These tests exercise `DashboardSnapshot.init(from:)`, the Apollo → domain
-// mapping behind `LiveSystemRepository.dashboard()`. See
+// These tests exercise `DashboardSnapshot.init(from:containers:vms:)`, the
+// Apollo → domain mapping behind `LiveSystemRepository.dashboard()`, through
+// `dashboardSnapshot(from:)` below, which maps one `Query` mock through the
+// core query and both counts queries as `dashboard()` does. See
 // `SystemRepositoryTests.swift` for why these two files split the mapping
 // coverage, and for the fuller explanation of why Apollo's generated
 // `Mock<O>` graph (via `RootSelectionSet.from(_:)`) is used here instead of
@@ -111,6 +113,21 @@ private func makeQuery(
   )
 }
 
+/// Maps `mock` the way `LiveSystemRepository.dashboard()` does: the core
+/// query and both counts queries each read their own selection of the one
+/// `Query` mock, and the three results compose into one snapshot.
+/// `SystemRepositoryTests.swift` uses it too.
+///
+/// That is why every mock here still passes `docker:` and `vms:`, although
+/// the core `DashboardQuery` no longer selects either: the counts queries
+/// read them, and omitting an entity argument is the crash described above.
+func dashboardSnapshot(from mock: Mock<TowerAPITestMocks.Query>) async -> DashboardSnapshot {
+  let core = await DashboardQuery.Data.from(mock)
+  let containers = await DashboardContainersQuery.Data.from(mock)
+  let vms = await DashboardVMsQuery.Data.from(mock)
+  return DashboardSnapshot(from: core, containers: containers.containerCounts, vms: vms.vmCounts)
+}
+
 @Test func mapsContainerAndVMCountsFromStates() async throws {
   let mock = makeQuery(
     array: emptyArray(),
@@ -128,8 +145,7 @@ private func makeQuery(
     ])
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   // 2 of 3 containers RUNNING, 1 of 2 VMs RUNNING — asserted against
   // fixtures where the running count is strictly less than the total, so a
@@ -157,8 +173,7 @@ private func makeQuery(
     vms: Mock<TowerAPITestMocks.Vms>(domains: nil)
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   #expect(snapshot.services.vmsRunning == nil)
   #expect(snapshot.services.vmsTotal == nil)
@@ -179,8 +194,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   #expect(snapshot.services.vmsRunning == 0)
   #expect(snapshot.services.vmsTotal == 0)
@@ -194,7 +208,7 @@ private func makeQuery(
   // itself, so every share on the same pool returns a byte-identical value
   // and summing across shares multiplies each pool's total by its share
   // count, which can produce a "usage" figure several times the array's
-  // size. See `ServiceCounts.init(from:)`.
+  // size. See `ServiceCounts.init(from:containers:vms:)`.
   let mock = makeQuery(
     array: emptyArray(),
     docker: emptyDocker(),
@@ -208,8 +222,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   #expect(snapshot.services.sharesTotal == 3)
 }
@@ -234,8 +247,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   #expect(snapshot.parity.state == .completed)
   #expect(!snapshot.parity.isActive)
@@ -258,8 +270,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   #expect(snapshot.parity.state == .running)
   #expect(snapshot.parity.isActive)
@@ -286,8 +297,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
   let mapped = try #require(snapshot.array.disks.first)
 
   #expect(mapped.fsType == "xfs")
@@ -321,8 +331,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
   let mapped = try #require(snapshot.array.parities.first)
 
   #expect(mapped.device == "sde")
@@ -357,8 +366,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
   let mapped = try #require(snapshot.array.caches.first)
 
   #expect(mapped.device == "nvme0n1")
@@ -384,8 +392,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   #expect(snapshot.array.system?.memoryUsedBytes == 12_884_901_888)
   #expect(snapshot.array.system?.memoryTotalBytes == 34_359_738_368)
@@ -423,8 +430,7 @@ private func makeQuery(
     vms: emptyVms()
   )
 
-  let data = await DashboardQuery.Data.from(mock)
-  let snapshot = DashboardSnapshot(from: data)
+  let snapshot = await dashboardSnapshot(from: mock)
 
   #expect(snapshot.array.disks.map(\.id) == ["d-low", "d-high"])
   // `p-low`'s `idx` is `0` — Parity1's real slot, not a sentinel — so this

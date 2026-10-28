@@ -5,13 +5,13 @@ import TowerData
 
 // These tests exercise `LiveSystemRepository.dashboard()` and
 // `.testConnection()` end-to-end through a stubbed `URLProtocol`, rather
-// than only through `DashboardSnapshot(from:)` directly (see
+// than only through `DashboardSnapshot(from:containers:vms:)` directly (see
 // `SystemRepositoryTests.swift`/`DashboardMappingTests.swift` for the
 // mapping-focused tests). That is what actually proves the GraphQL-error
-// check and the nil-data guard fire — `DashboardSnapshot.init(from:)` being
-// non-public only matters if the guards wrapping the one remaining path to
-// it (`dashboard()`) are themselves verified, not merely present in the
-// source.
+// check and the nil-data guard fire —
+// `DashboardSnapshot.init(from:containers:vms:)` being non-public only
+// matters if the guards wrapping the one remaining path to it
+// (`dashboard()`) are themselves verified, not merely present in the source.
 //
 // The stub itself lives in `StubURLProtocol.swift`. `ApolloClientProvider`
 // has its own `URLSession`, so the stub is installed in that session's
@@ -108,13 +108,16 @@ private func makeRepository(host: String, json: String) -> LiveSystemRepository 
   }
 }
 
-/// A Dashboard response whose data is intact apart from `vms.domains`, with
-/// `errors` interpolated raw. This is the shape Unraid sends with the VM
-/// manager disabled: the `domains` resolver throws, and because the field is
-/// nullable the server nulls only it.
-private func dashboardResponse(errors: String) -> String {
-  #"""
-  {"data": {
+// MARK: - dashboard(), one query per row
+
+// `dashboard()` sends three queries to one endpoint: the core `Dashboard`, and
+// `DashboardContainers` and `DashboardVMs` for the two optional rows. The tests
+// below answer each by its operation name, so one test can fail one query and
+// let the others succeed, which is what a server with one service off does.
+
+/// The core query's answer: an intact array with no disks, and one share.
+private let coreData = #"""
+  {
     "array": {"__typename": "UnraidArray", "state": "STARTED",
       "capacity": {"__typename": "ArrayCapacity", "kilobytes": {"__typename": "Capacity", "free": "100", "used": "300", "total": "400"}},
       "parityCheckStatus": {"__typename": "ParityCheck", "status": "NEVER_RUN", "correcting": null, "progress": null, "errors": null, "speed": null, "date": null, "duration": null},
@@ -123,23 +126,93 @@ private func dashboardResponse(errors: String) -> String {
       "os": {"__typename": "InfoOs", "distro": "Unraid", "release": "7.3.0", "uptime": null},
       "cpu": {"__typename": "InfoCpu", "brand": null, "cores": null, "threads": null}},
     "metrics": {"__typename": "Metrics", "cpu": null, "memory": null},
-    "docker": {"__typename": "Docker", "containers": [{"__typename": "DockerContainer", "id": "c1", "state": "RUNNING"}]},
-    "vms": {"__typename": "Vms", "domains": null},
     "shares": [{"__typename": "Share", "id": "s1"}]
-  },
-  "errors": \#(errors)}
+  }
   """#
+
+private let coreResponse = #"{"data": \#(coreData)}"#
+
+/// Two containers, one of them running.
+private let containersResponse = #"""
+  {"data": {"docker": {"__typename": "Docker", "containers": [
+    {"__typename": "DockerContainer", "id": "c1", "state": "RUNNING"},
+    {"__typename": "DockerContainer", "id": "c2", "state": "EXITED"}
+  ]}}}
+  """#
+
+/// Three VMs, one of them running.
+private let vmsResponse = #"""
+  {"data": {"vms": {"__typename": "Vms", "domains": [
+    {"__typename": "VmDomain", "id": "v1", "state": "RUNNING"},
+    {"__typename": "VmDomain", "id": "v2", "state": "SHUTOFF"},
+    {"__typename": "VmDomain", "id": "v3", "state": "SHUTOFF"}
+  ]}}}
+  """#
+
+/// A `LiveSystemRepository` whose three dashboard queries are answered
+/// separately. `host` must be unique per test, as for `makeRepository`.
+private func makeDashboardRepository(
+  host: String,
+  core: String = coreResponse,
+  containers: String = containersResponse,
+  vms: String = vmsResponse
+) -> LiveSystemRepository {
+  let endpoint = URL(string: "http://\(host)/graphql")!
+  StubURLProtocol.stub(url: endpoint, operationName: "Dashboard", json: core)
+  StubURLProtocol.stub(url: endpoint, operationName: "DashboardContainers", json: containers)
+  StubURLProtocol.stub(url: endpoint, operationName: "DashboardVMs", json: vms)
+  let server = Server(name: "Stub", url: URL(string: "http://\(host)")!, apiKey: "test-key")
+  return LiveSystemRepository(provider: ApolloClientProvider(server: server, sessionConfiguration: StubURLProtocol.configuration()))
+}
+
+@Test func dashboardSendsEachQueryUnderItsOwnOperationName() async throws {
+  // The routing every test below depends on, asserted on the wire: if the
+  // request body stopped carrying `operationName`, the named stubs would never
+  // match and these tests would be exercising the URL fallback instead.
+  let host = "stub-dashboard-operation-names.test"
+  let repository = makeDashboardRepository(host: host)
+
+  let snapshot = try await repository.dashboard()
+
+  let names = StubURLProtocol.operationNames(url: URL(string: "http://\(host)/graphql")!)
+  #expect(names.sorted() == ["Dashboard", "DashboardContainers", "DashboardVMs"])
+  #expect(snapshot.services.containersSummary == "1 of 2 running")
+  #expect(snapshot.services.vmsSummary == "1 of 3 running")
+  #expect(snapshot.services.sharesTotal == 1)
+}
+
+@Test func dashboardShowsDockerUnavailableWhenTheDockerServiceIsDisabled() async throws {
+  // Issue #10: with the Docker service off, `Docker.containers` throws "Docker
+  // socket unavailable.". It and `docker` are both non-null, so the null
+  // reaches the root and the answer is `data: null`. In one query that failed
+  // the whole dashboard; split out, it may only take the Docker row with it.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-docker-disabled.test",
+    containers: #"""
+    {"data": null, "errors": [{"message": "Docker socket unavailable.", "path": ["docker", "containers"]}]}
+    """#
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.containersRunning == nil)
+  #expect(snapshot.services.containersTotal == nil)
+  #expect(snapshot.services.containersSummary == "Unavailable")
+  #expect(snapshot.array.state == "STARTED")
+  #expect(snapshot.array.capacity?.total == 400)
+  #expect(snapshot.services.sharesTotal == 1)
+  #expect(snapshot.services.vmsSummary == "1 of 3 running")
 }
 
 @Test func dashboardShowsVMsUnavailableWhenTheVMManagerIsDisabled() async throws {
-  // Issue #8: a server with the VM manager off answered with this error and
-  // the whole dashboard failed. The data is intact apart from `domains`, so
-  // the dashboard must load and report VMs as unavailable.
-  let repository = makeRepository(
+  // Issue #8: with the VM manager off, the `domains` resolver throws. The
+  // field is nullable, so the server nulls only it and sends the error beside.
+  let repository = makeDashboardRepository(
     host: "stub-dashboard-vms-disabled.test",
-    json: dashboardResponse(errors: #"""
-    [{"message": "Failed to retrieve VM domains: libvirt is not running", "path": ["vms", "domains"]}]
-    """#)
+    vms: #"""
+    {"data": {"vms": {"__typename": "Vms", "domains": null}},
+     "errors": [{"message": "Failed to retrieve VM domains: libvirt is not running", "path": ["vms", "domains"]}]}
+    """#
   )
 
   let snapshot = try await repository.dashboard()
@@ -147,19 +220,110 @@ private func dashboardResponse(errors: String) -> String {
   #expect(snapshot.services.vmsRunning == nil)
   #expect(snapshot.services.vmsTotal == nil)
   #expect(snapshot.services.vmsSummary == "Unavailable")
-  #expect(snapshot.services.containersTotal == 1)
+  #expect(snapshot.services.containersSummary == "1 of 2 running")
   #expect(snapshot.services.sharesTotal == 1)
 }
 
-@Test func dashboardStillThrowsAnErrorOutsideVMDomainsAlongsideOne() async throws {
-  // Only the `vms.domains` failure is expressed by the data. Any other error
-  // in the same response still fails the load, with its message alone.
-  let repository = makeRepository(
-    host: "stub-dashboard-vms-and-other.test",
-    json: dashboardResponse(errors: #"""
-    [{"message": "Failed to retrieve VM domains: libvirt is not running", "path": ["vms", "domains"]},
-     {"message": "Failed to read shares", "path": ["shares"]}]
-    """#)
+@Test func dashboardShowsBothRowsUnavailableWhenBothServicesAreOff() async throws {
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-both-disabled.test",
+    containers: #"""
+    {"data": null, "errors": [{"message": "Docker socket unavailable.", "path": ["docker", "containers"]}]}
+    """#,
+    vms: #"""
+    {"data": {"vms": {"__typename": "Vms", "domains": null}},
+     "errors": [{"message": "Failed to retrieve VM domains: libvirt is not running", "path": ["vms", "domains"]}]}
+    """#
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.containersSummary == "Unavailable")
+  #expect(snapshot.services.vmsSummary == "Unavailable")
+  #expect(snapshot.services.sharesTotal == 1)
+}
+
+@Test func dashboardReadsAForbiddenCountsQueryAsUnavailable() async throws {
+  // A key without permission for one service. The core query succeeded with
+  // the same key, so the key is valid: this is a row Tower cannot read, not a
+  // credentials problem, and it must not blank the dashboard.
+  let forbidden = #"""
+    {"data": null, "errors": [{"message": "Forbidden resource", "extensions": {"code": "FORBIDDEN"}}]}
+    """#
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-counts-forbidden.test",
+    containers: forbidden,
+    vms: forbidden
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.containersSummary == "Unavailable")
+  #expect(snapshot.services.vmsSummary == "Unavailable")
+  #expect(snapshot.array.state == "STARTED")
+}
+
+@Test func dashboardReadsACountsQueryWithIntactDataAndAnErrorAsUnavailable() async throws {
+  // Data alone is not enough: an error beside it means the server could not
+  // answer for that service in full, so the row is not a reading to show.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-counts-data-and-error.test",
+    containers: #"""
+    {"data": {"docker": {"__typename": "Docker", "containers": [
+      {"__typename": "DockerContainer", "id": "c1", "state": "RUNNING"}
+    ]}},
+     "errors": [{"message": "Failed to read container sizes", "path": ["docker", "containers", 0]}]}
+    """#,
+    vms: #"""
+    {"data": {"vms": {"__typename": "Vms", "domains": [
+      {"__typename": "VmDomain", "id": "v1", "state": "RUNNING"}
+    ]}},
+     "errors": [{"message": "Failed to read one domain", "path": ["vms", "domains", 0]}]}
+    """#
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.containersSummary == "Unavailable")
+  #expect(snapshot.services.vmsSummary == "Unavailable")
+}
+
+@Test(.timeLimit(.minutes(1)))
+func dashboardThrowsRatherThanLoadingWhenCancelledDuringTheCountsQueries() async throws {
+  // A counts query swallows its own errors, cancellation included. Cancelled
+  // after the core query has answered, `dashboard()` must still throw: a loaded
+  // snapshot with the Docker row "Unavailable" would be written over the
+  // store's cancelled state by a torn-down poll.
+  //
+  // The containers query is never answered, so the cancellation is certain to
+  // land while it is in flight. The core and VM queries answer at once; the
+  // short wait after all three requests arrive lets the core response finish
+  // decoding, so it is the counts path, not the core, that sees the cancel.
+  let host = "stub-dashboard-cancelled-mid-counts.test"
+  let endpoint = URL(string: "http://\(host)/graphql")!
+  let repository = makeDashboardRepository(host: host)
+  StubURLProtocol.stubNoAnswer(url: endpoint, operationName: "DashboardContainers")
+
+  let task = Task { try await repository.dashboard() }
+  while StubURLProtocol.operationNames(url: endpoint).count < 3 {
+    try await Task.sleep(for: .milliseconds(10))
+  }
+  try await Task.sleep(for: .milliseconds(200))
+  task.cancel()
+
+  if case .success(let snapshot) = await task.result {
+    Issue.record("a cancelled dashboard() loaded: \(snapshot.services)")
+  }
+}
+
+@Test func dashboardStillThrowsACoreErrorWhenTheCountsQueriesSucceed() async throws {
+  // Only the two counts queries degrade. Any error on the core query fails the
+  // load with its message, even when its data is otherwise intact.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-core-error.test",
+    core: #"""
+    {"data": \#(coreData), "errors": [{"message": "Failed to read shares", "path": ["shares"]}]}
+    """#
   )
 
   do {
@@ -170,13 +334,13 @@ private func dashboardResponse(errors: String) -> String {
   }
 }
 
-@Test func dashboardStillMapsAnAuthErrorUnderVMDomainsToUnauthorized() async throws {
-  // A key that may not read VMs is a key problem, not a disabled VM manager.
-  let repository = makeRepository(
-    host: "stub-dashboard-vms-forbidden.test",
-    json: dashboardResponse(errors: #"""
-    [{"message": "Forbidden resource", "path": ["vms", "domains"], "extensions": {"code": "FORBIDDEN"}}]
-    """#)
+@Test func dashboardStillMapsACoreAuthErrorToUnauthorized() async throws {
+  // The counts queries succeeding must not soften a rejected key on the core.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-core-unauthenticated.test",
+    core: #"""
+    {"data": null, "errors": [{"message": "API key validation failed", "extensions": {"code": "UNAUTHENTICATED"}}]}
+    """#
   )
 
   do {
@@ -265,8 +429,13 @@ struct LiveDashboardTests {
     // The live server's actual counts vary run to run and aren't a fixed
     // contract to assert on — this is a smoke test that the query and
     // every mapping path complete without throwing, decoding, or crashing.
-    #expect(snapshot.services.containersTotal >= 0)
-    #expect(snapshot.services.containersRunning <= snapshot.services.containersTotal)
+    // `containersRunning`/`containersTotal` are `Int?` for the same reason:
+    // nil on a server with the Docker service off.
+    if let containersRunning = snapshot.services.containersRunning,
+       let containersTotal = snapshot.services.containersTotal {
+      #expect(containersTotal >= 0)
+      #expect(containersRunning <= containersTotal)
+    }
     // `vmsRunning`/`vmsTotal` are `Int?` — nil on a server where
     // VM reporting is unavailable, so only assert the invariant when a real
     // reading came back.

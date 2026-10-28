@@ -239,7 +239,15 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
   /// Docker-assisted prefill. Opt-in rather than always-on because
   /// `DockerUITests` asserts the list is exactly six rows, and a seventh
   /// fixture would make that test about this one's fixtures.
+  /// `UITEST_DOCKER_STATE=unavailable` is the one value that selects a
+  /// whole-tab outcome rather than a behaviour across calls: every call throws
+  /// `AppError.serviceUnavailable`, what `LiveDockerRepository` throws with the
+  /// Docker service off, so `DockerUITests` can assert the "Docker Unavailable"
+  /// state. `FakeSystemRepository` is unaffected and still reports 14 of 16.
   func containers() async throws -> [Container] {
+    if ProcessInfo.processInfo.environment["UITEST_DOCKER_STATE"] == "unavailable" {
+      throw AppError.serviceUnavailable("Docker")
+    }
     let all = [
       Container(
         id: "uitest-container-1", names: ["/code-server"],

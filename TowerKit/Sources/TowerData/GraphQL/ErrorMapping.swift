@@ -37,7 +37,8 @@ extension AppError {
   ///
   /// Deliberately **not** public: `GraphQLError` is an Apollo type, and
   /// TowerData's boundary rule is that Apollo types never appear in a public
-  /// signature (see the non-public `DashboardSnapshot.init(from:)` in
+  /// signature (see the non-public
+  /// `DashboardSnapshot.init(from:containers:vms:)` in
   /// `SystemRepository.swift`, for the same reason).
   static func from(graphQLErrors errors: [GraphQLError]) -> AppError {
     // A mixed batch (one auth error alongside an unrelated GraphQL error) is
@@ -69,8 +70,10 @@ extension Array where Element == GraphQLError {
   /// ("Failed to retrieve VM domains: …"). `Vms.domains` is nullable, so the
   /// server nulls only that field and returns the rest of `data` intact. A
   /// null `domains` already maps to "VMs unavailable", so that error says
-  /// nothing the data does not — treating it as fatal blanked the whole
-  /// dashboard on every VM-less server (issue #8).
+  /// nothing the data does not — treating it as fatal would put the generic
+  /// error screen on the VMs tab of every VM-less server (issue #8).
+  /// `VMRepository.domains()` is the one caller; the dashboard asks for its
+  /// VM counts in a query of their own, which needs no filter.
   ///
   /// Auth errors are kept even under `vms`: a key that cannot read VMs is
   /// still a key problem, and `from(graphQLErrors:)` must see it.

@@ -1,7 +1,7 @@
 import XCTest
 
 /// The Docker tab's behavioural coverage: the loaded list, search
-/// narrowing and its empty state, a swipe action actually mutating a row, a
+/// narrowing and its empty state, the Docker-unavailable state, a swipe action actually mutating a row, a
 /// failed action keeping the list while surfacing the error, and the two
 /// consequences of navigating by identifier on the detail screen — it
 /// reflects a mutation fired from its own Actions section, and it renders
@@ -183,6 +183,30 @@ final class DockerUITests: XCTestCase {
       "showed the \"No Containers\" empty state for a failed search — the server has six"
     )
     XCTAssertEqual(rowCount(in: app), 0, "no container rows should survive a search that matches nothing")
+  }
+
+  // MARK: - Unavailable
+
+  /// With the Docker service off, the tab says so. Not "No Containers", which
+  /// is a claim about a server Tower cannot read, and not the generic error
+  /// screen, which reads as a fault to diagnose. Mirrors
+  /// `VMUITests.testUnavailableStateDoesNotClaimTheServerHasNoVMs`.
+  func testUnavailableStateDoesNotClaimTheServerHasNoContainers() throws {
+    let app = launchOnDocker(state: "unavailable")
+
+    let unavailable = app.descendants(matching: .any)
+      .matching(identifier: "docker.unavailable").firstMatch
+    XCTAssertTrue(unavailable.waitForExistence(timeout: 10), "the Docker-unavailable state never appeared")
+    XCTAssertFalse(
+      app.descendants(matching: .any).matching(identifier: "docker.empty").firstMatch.exists,
+      "a stopped Docker service was described as a server with no containers"
+    )
+    XCTAssertFalse(
+      app.descendants(matching: .any).matching(identifier: "docker.error").firstMatch.exists,
+      "a stopped Docker service was shown as the generic error screen"
+    )
+    XCTAssertTrue(app.buttons["docker.retry"].exists, "the unavailable state lost its Try Again button")
+    try saveScreenshot(named: "docker-unavailable")
   }
 
   // MARK: - Mutations
