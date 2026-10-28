@@ -1,5 +1,6 @@
-# The TowerKit tests on every pull request. CLAUDE.md, "Build and test", says what each
-# tier covers.
+# The TowerKit tests on every pull request, and before every TestFlight archive:
+# testflight.yml calls this workflow and archives only when it passes. CLAUDE.md, "Build
+# and test", says what each tier covers.
 #
 # `TowerTests` and the UI tests run nowhere hosted. A pull request still says which of
 # those its author ran.
@@ -9,6 +10,7 @@ name: Tests
 
 on:
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
