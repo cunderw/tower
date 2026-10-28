@@ -108,6 +108,85 @@ private func makeRepository(host: String, json: String) -> LiveSystemRepository 
   }
 }
 
+/// A Dashboard response whose data is intact apart from `vms.domains`, with
+/// `errors` interpolated raw. This is the shape Unraid sends with the VM
+/// manager disabled: the `domains` resolver throws, and because the field is
+/// nullable the server nulls only it.
+private func dashboardResponse(errors: String) -> String {
+  #"""
+  {"data": {
+    "array": {"__typename": "UnraidArray", "state": "STARTED",
+      "capacity": {"__typename": "ArrayCapacity", "kilobytes": {"__typename": "Capacity", "free": "100", "used": "300", "total": "400"}},
+      "parityCheckStatus": {"__typename": "ParityCheck", "status": "NEVER_RUN", "correcting": null, "progress": null, "errors": null, "speed": null, "date": null, "duration": null},
+      "disks": [], "parities": [], "caches": []},
+    "info": {"__typename": "Info",
+      "os": {"__typename": "InfoOs", "distro": "Unraid", "release": "7.3.0", "uptime": null},
+      "cpu": {"__typename": "InfoCpu", "brand": null, "cores": null, "threads": null}},
+    "metrics": {"__typename": "Metrics", "cpu": null, "memory": null},
+    "docker": {"__typename": "Docker", "containers": [{"__typename": "DockerContainer", "id": "c1", "state": "RUNNING"}]},
+    "vms": {"__typename": "Vms", "domains": null},
+    "shares": [{"__typename": "Share", "id": "s1"}]
+  },
+  "errors": \#(errors)}
+  """#
+}
+
+@Test func dashboardShowsVMsUnavailableWhenTheVMManagerIsDisabled() async throws {
+  // Issue #8: a server with the VM manager off answered with this error and
+  // the whole dashboard failed. The data is intact apart from `domains`, so
+  // the dashboard must load and report VMs as unavailable.
+  let repository = makeRepository(
+    host: "stub-dashboard-vms-disabled.test",
+    json: dashboardResponse(errors: #"""
+    [{"message": "Failed to retrieve VM domains: libvirt is not running", "path": ["vms", "domains"]}]
+    """#)
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.vmsRunning == nil)
+  #expect(snapshot.services.vmsTotal == nil)
+  #expect(snapshot.services.vmsSummary == "Unavailable")
+  #expect(snapshot.services.containersTotal == 1)
+  #expect(snapshot.services.sharesTotal == 1)
+}
+
+@Test func dashboardStillThrowsAnErrorOutsideVMDomainsAlongsideOne() async throws {
+  // Only the `vms.domains` failure is expressed by the data. Any other error
+  // in the same response still fails the load, with its message alone.
+  let repository = makeRepository(
+    host: "stub-dashboard-vms-and-other.test",
+    json: dashboardResponse(errors: #"""
+    [{"message": "Failed to retrieve VM domains: libvirt is not running", "path": ["vms", "domains"]},
+     {"message": "Failed to read shares", "path": ["shares"]}]
+    """#)
+  )
+
+  do {
+    _ = try await repository.dashboard()
+    Issue.record("expected dashboard() to throw")
+  } catch let error as AppError {
+    #expect(error == .graphQL(["Failed to read shares"]))
+  }
+}
+
+@Test func dashboardStillMapsAnAuthErrorUnderVMDomainsToUnauthorized() async throws {
+  // A key that may not read VMs is a key problem, not a disabled VM manager.
+  let repository = makeRepository(
+    host: "stub-dashboard-vms-forbidden.test",
+    json: dashboardResponse(errors: #"""
+    [{"message": "Forbidden resource", "path": ["vms", "domains"], "extensions": {"code": "FORBIDDEN"}}]
+    """#)
+  )
+
+  do {
+    _ = try await repository.dashboard()
+    Issue.record("expected dashboard() to throw")
+  } catch let error as AppError {
+    #expect(error == .unauthorized)
+  }
+}
+
 // MARK: - testConnection()
 
 @Test func testConnectionReturnsTrueWhenPlatformIsPresent() async throws {
