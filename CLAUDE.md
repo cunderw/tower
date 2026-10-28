@@ -41,8 +41,10 @@ user adds.
 ## Build and test
 
 A kit-tier workflow (`.github/workflows/tests.yml`) runs the `TowerKit` tests on pull
-requests in the public repository. Every other gate below runs locally, and a green claim
-must come from output you read.
+requests in the public repository. A push to `main` that touches the app's paths runs
+`.github/workflows/testflight.yml`, which runs those `TowerKit` tests and then uploads a
+TestFlight build. Every other gate below runs locally, and a green claim must come from
+output you read.
 
 Define `xbm` once in each shell you open. It holds the version pin, and it works in zsh
 and in bash:
@@ -237,6 +239,10 @@ The release procedure lives outside this repo. These are the facts about the tre
   YES` supplies it.
 - **Never commit a `CURRENT_PROJECT_VERSION` bump.** The committed value is a placeholder.
   The build number is passed on the archive command line.
+- **A push to `main` that touches `Tower/`, `TowerKit/`, `TowerAPI/` or `Tower.xcodeproj/`
+  uploads a TestFlight build** through `.github/workflows/testflight.yml`, numbered from
+  App Store Connect's newest build plus one. It is a beta, not a release: the release
+  gates still run locally before App Store submission.
 - **The App Store listing is `docs/app-store-copy.json`.** The screenshots are the two
   committed sets in `docs/app-store-assets/iphone-69` and `docs/app-store-assets/ipad-13`.
 - **Release gates**, all green before the archive: the `TowerKit` tests, the whole
