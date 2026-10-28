@@ -37,7 +37,7 @@ public struct LiveSystemRepository: SystemRepositoryProtocol {
       query: DashboardQuery(),
       cachePolicy: .networkOnly
     )
-    if let errors = response.errors, !errors.isEmpty {
+    if let errors = response.errors?.excludingVMDomainFailures(), !errors.isEmpty {
       throw AppError.from(graphQLErrors: errors)
     }
     guard let data = response.data else {

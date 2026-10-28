@@ -45,13 +45,41 @@ extension AppError {
     // API key before anything else the server said matters. So any
     // UNAUTHENTICATED/FORBIDDEN entry anywhere in the batch wins over
     // whatever else is in `errors`, rather than averaging/concatenating.
-    let isAuthFailure = errors.contains { error in
-      guard let code = error.extensions?["code"] as? String else { return false }
-      return code == "UNAUTHENTICATED" || code == "FORBIDDEN"
-    }
-    if isAuthFailure {
+    if errors.contains(where: \.isAuthFailure) {
       return .unauthorized
     }
     return .graphQL(errors.compactMap(\.message))
+  }
+}
+
+extension GraphQLError {
+  var isAuthFailure: Bool {
+    guard let code = extensions?["code"] as? String else { return false }
+    return code == "UNAUTHENTICATED" || code == "FORBIDDEN"
+  }
+}
+
+extension Array where Element == GraphQLError {
+  /// The errors left after dropping the ones under `vms.domains`, which the
+  /// data already expresses as nulls: the whole list when the resolver
+  /// throws (the VM manager disabled case), or a nullable field of one
+  /// domain (`vms.domains.N.name`), which leaves `domains` non-null.
+  ///
+  /// With the VM manager disabled, Unraid's `domains` resolver throws
+  /// ("Failed to retrieve VM domains: …"). `Vms.domains` is nullable, so the
+  /// server nulls only that field and returns the rest of `data` intact. A
+  /// null `domains` already maps to "VMs unavailable", so that error says
+  /// nothing the data does not — treating it as fatal blanked the whole
+  /// dashboard on every VM-less server (issue #8).
+  ///
+  /// Auth errors are kept even under `vms`: a key that cannot read VMs is
+  /// still a key problem, and `from(graphQLErrors:)` must see it.
+  func excludingVMDomainFailures() -> [GraphQLError] {
+    filter { error in
+      guard let path = error.path, path.starts(with: [.field("vms"), .field("domains")]) else {
+        return true
+      }
+      return error.isAuthFailure
+    }
   }
 }

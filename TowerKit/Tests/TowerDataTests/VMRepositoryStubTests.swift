@@ -61,6 +61,23 @@ private func domainJSON(id: String, name: String?, state: String) -> String {
   #expect(inventory.isUnavailable)
 }
 
+@Test func domainsReportsUnavailableWhenTheVMManagerIsDisabled() async throws {
+  // Issue #8: with the VM manager off, the `domains` resolver throws and the
+  // server nulls the field. That is the "VMs Unavailable" state, not a
+  // generic load failure.
+  let repository = makeRepository(
+    host: "stub-vms-disabled.test",
+    json: #"""
+    {"data": {"vms": {"__typename": "Vms", "id": "hash:vms", "domains": null}},
+     "errors": [{"message": "Failed to retrieve VM domains: libvirt is not running", "path": ["vms", "domains"]}]}
+    """#
+  )
+
+  let inventory = try await repository.domains()
+
+  #expect(inventory.isUnavailable)
+}
+
 @Test func domainsReportsAvailableAndEmptyWhenTheServerSendsNoDomains() async throws {
   // The other direction, proven independently: a healthy server with no VMs
   // defined reports `[]`, and that must not read as "unavailable" either.
