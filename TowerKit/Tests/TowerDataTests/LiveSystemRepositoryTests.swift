@@ -288,19 +288,30 @@ private func makeDashboardRepository(
   #expect(snapshot.services.vmsSummary == "Unavailable")
 }
 
-@Test func dashboardThrowsRatherThanLoadingWhenItsTaskIsCancelled() async {
-  // A swallowed cancellation in a counts query must not come back as a loaded
-  // snapshot with both rows "Unavailable": a torn-down poll would write that
-  // over the store's cancelled state. The task cancels itself before calling,
-  // so whatever the stubs answer, `dashboard()` has to notice and throw.
-  let repository = makeDashboardRepository(host: "stub-dashboard-cancelled.test")
+@Test(.timeLimit(.minutes(1)))
+func dashboardThrowsRatherThanLoadingWhenCancelledDuringTheCountsQueries() async throws {
+  // A counts query swallows its own errors, cancellation included. Cancelled
+  // after the core query has answered, `dashboard()` must still throw: a loaded
+  // snapshot with the Docker row "Unavailable" would be written over the
+  // store's cancelled state by a torn-down poll.
+  //
+  // The containers query is never answered, so the cancellation is certain to
+  // land while it is in flight. The core and VM queries answer at once; the
+  // short wait after all three requests arrive lets the core response finish
+  // decoding, so it is the counts path, not the core, that sees the cancel.
+  let host = "stub-dashboard-cancelled-mid-counts.test"
+  let endpoint = URL(string: "http://\(host)/graphql")!
+  let repository = makeDashboardRepository(host: host)
+  StubURLProtocol.stubNoAnswer(url: endpoint, operationName: "DashboardContainers")
 
-  let result = await Task {
-    withUnsafeCurrentTask { $0?.cancel() }
-    return try await repository.dashboard()
-  }.result
+  let task = Task { try await repository.dashboard() }
+  while StubURLProtocol.operationNames(url: endpoint).count < 3 {
+    try await Task.sleep(for: .milliseconds(10))
+  }
+  try await Task.sleep(for: .milliseconds(200))
+  task.cancel()
 
-  if case .success(let snapshot) = result {
+  if case .success(let snapshot) = await task.result {
     Issue.record("a cancelled dashboard() loaded: \(snapshot.services)")
   }
 }

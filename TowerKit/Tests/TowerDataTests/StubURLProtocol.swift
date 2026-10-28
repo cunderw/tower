@@ -32,6 +32,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
   nonisolated(unsafe) private static var responses: [URL: Data] = [:]
   nonisolated(unsafe) private static var operationResponses: [OperationKey: Data] = [:]
   nonisolated(unsafe) private static var recordedOperationNames: [URL: [String]] = [:]
+  nonisolated(unsafe) private static var unansweredOperations: Set<OperationKey> = []
 
   /// A configuration that routes every request through this stub. Pass it to
   /// `ApolloClientProvider(server:sessionConfiguration:)`.
@@ -55,7 +56,16 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     operationResponses[OperationKey(url: url, operationName: operationName)] = Data(json.utf8)
   }
 
-  /// The `operationName` of every request answered at `url`, in arrival order.
+  /// Never answers a request at `url` whose body's `operationName` is
+  /// `operationName`: the request stays in flight until its task is cancelled.
+  /// For a test that needs a cancellation to land mid-request.
+  static func stubNoAnswer(url: URL, operationName: String) {
+    lock.lock()
+    defer { lock.unlock() }
+    unansweredOperations.insert(OperationKey(url: url, operationName: operationName))
+  }
+
+  /// The `operationName` of every request received at `url`, in arrival order.
   /// A request whose body carried none records as an empty string.
   static func operationNames(url: URL) -> [String] {
     lock.lock()
@@ -67,7 +77,9 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     guard let url = request.url else { return false }
     lock.lock()
     defer { lock.unlock() }
-    return responses[url] != nil || operationResponses.keys.contains { $0.url == url }
+    return responses[url] != nil
+      || operationResponses.keys.contains { $0.url == url }
+      || unansweredOperations.contains { $0.url == url }
   }
 
   override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -80,10 +92,14 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
       .flatMap { $0["operationName"] as? String }
     StubURLProtocol.lock.lock()
     StubURLProtocol.recordedOperationNames[url, default: []].append(operationName ?? "")
+    let isUnanswered = operationName.map {
+      StubURLProtocol.unansweredOperations.contains(OperationKey(url: url, operationName: $0))
+    } ?? false
     let body = operationName
       .flatMap { StubURLProtocol.operationResponses[OperationKey(url: url, operationName: $0)] }
       ?? StubURLProtocol.responses[url]
     StubURLProtocol.lock.unlock()
+    if isUnanswered { return }
     guard let body else {
       client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
       return
