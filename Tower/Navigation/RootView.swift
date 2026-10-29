@@ -17,6 +17,12 @@ struct RootView: View {
   /// Regular width only — the sidebar's per-instance Services section exists
   /// there and has nowhere to live in a tab bar.
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  /// Whether this `TabView` can show a sidebar, as its tabs' content reads it.
+  /// Regular width is not enough on its own: an unfolded iPhone Duo is regular
+  /// width with no sidebar, and lays the per-instance tabs out in its side tab
+  /// bar. Reported up from the tabs by `TabSidebarAvailabilityReader`, because
+  /// the environment value reads `false` anywhere above the `TabView`.
+  @State private var isTabSidebarAvailable = TabSidebarAvailabilityReader.initialValue
 
   @State private var selection: TowerDestination = .tab(.dashboard)
   /// The Docker and Services lists' selections, **owned here** because the
@@ -94,15 +100,22 @@ struct RootView: View {
     ServiceContainerLink.container(for: instance, in: containers, serverURL: server.url)
   }
 
+  /// The sidebar's per-instance Services section. In a tab bar these would be
+  /// nine more items competing with the five real tabs, which is what the hub
+  /// tab exists to prevent, so they appear only where a sidebar can.
+  private var showsServiceTabs: Bool {
+    horizontalSizeClass != .compact && isTabSidebarAvailable
+  }
+
   /// Jumps to the Services tab with `instance` open.
   ///
-  /// On iPad the sidebar lists each instance as its own destination, so the
-  /// jump is direct; on iPhone it is the hub tab plus the hub's selection,
-  /// which `ListDetailScaffold` turns into a push.
+  /// With the sidebar's Services section the jump is direct; without it, it is
+  /// the hub tab plus the hub's selection, which `ListDetailScaffold` turns
+  /// into a push or a split-view detail. Never `.service` without the section:
+  /// that would select a tab that does not exist.
   private func open(service instance: ServiceInstance) {
     servicesSelection = instance.id
-    selection = horizontalSizeClass == .compact
-      ? .tab(.services) : .service(instance.id)
+    selection = showsServiceTabs ? .service(instance.id) : .tab(.services)
   }
 
   private func open(container: Container) {
@@ -122,6 +135,7 @@ struct RootView: View {
           isSelected: selection == .tab(.dashboard)
         )
         .accessibilityIdentifier("tab.dashboard.content")
+        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
       }
       Tab(TowerTab.docker.title, systemImage: TowerTab.docker.systemImage, value: TowerDestination.tab(.docker)) {
         DockerListView(
@@ -135,6 +149,7 @@ struct RootView: View {
           openService: open(service:)
         )
         .accessibilityIdentifier("tab.docker.content")
+        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
       }
       Tab(TowerTab.vms.title, systemImage: TowerTab.vms.systemImage, value: TowerDestination.tab(.vms)) {
         VMListView(
@@ -145,6 +160,7 @@ struct RootView: View {
           isSelected: selection == .tab(.vms)
         )
         .accessibilityIdentifier("tab.vms.content")
+        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
       }
       Tab(TowerTab.shares.title, systemImage: TowerTab.shares.systemImage, value: TowerDestination.tab(.shares)) {
         ShareListView(
@@ -155,6 +171,7 @@ struct RootView: View {
           isSelected: selection == .tab(.shares)
         )
         .accessibilityIdentifier("tab.shares.content")
+        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
       }
       Tab(TowerTab.services.title, systemImage: TowerTab.services.systemImage, value: TowerDestination.tab(.services)) {
         ServicesHubView(
@@ -175,12 +192,11 @@ struct RootView: View {
           selection: $servicesSelection
         )
         .accessibilityIdentifier("tab.services.content")
+        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
       }
       // The iPad sidebar's Services section: every configured instance by name,
-      // one tap from anywhere. Regular width only — in a tab bar these would be
-      // nine more items competing with the five real tabs, which is what the
-      // hub tab above exists to prevent.
-      if horizontalSizeClass != .compact {
+      // one tap from anywhere. See `showsServiceTabs` for where it appears.
+      if showsServiceTabs {
         TabSection("Services") {
           ForEach(servicesStore.enabledInstances) { instance in
             Tab(
@@ -204,6 +220,7 @@ struct RootView: View {
                   )
               }
               .accessibilityIdentifier("tab.service.\(instance.id.uuidString).content")
+              .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
             }
           }
         }
@@ -243,6 +260,45 @@ struct RootView: View {
   // `performSignOut` below, where `SignOutTests` can reach it directly.
   private func handleSignOut() {
     performSignOut(environment: environment, dismiss: { isShowingSettings = false }, onSignOut: onSignOut)
+  }
+}
+
+/// Reports `isTabViewSidebarAvailable` from inside a tab's content up to
+/// `RootView`, which builds the `TabView` and so cannot read it itself.
+///
+/// The value, not `tabBarPlacement`: on iPad the placement flips between
+/// `topBar` and `sidebar` as the person toggles the sidebar, and removing the
+/// instance tabs on that toggle would drop a selected instance. Availability
+/// stays `true` on iPad in both layouts, and is `false` on an iPhone, the
+/// unfolded iPhone Duo included.
+struct TabSidebarAvailabilityReader: ViewModifier {
+  @Binding var isAvailable: Bool
+
+  /// Before any tab has reported. `false` from iOS 27, so a device without a
+  /// sidebar never draws the instance tabs for a frame; before iOS 27 the
+  /// value cannot be read and regular width alone decides, as it always did.
+  static var initialValue: Bool {
+    if #available(iOS 27, *) { false } else { true }
+  }
+
+  func body(content: Content) -> some View {
+    if #available(iOS 27, *) {
+      content.modifier(Reader(isAvailable: $isAvailable))
+    } else {
+      content
+    }
+  }
+
+  @available(iOS 27, *)
+  private struct Reader: ViewModifier {
+    @Binding var isAvailable: Bool
+    @Environment(\.isTabViewSidebarAvailable) private var isTabViewSidebarAvailable
+
+    func body(content: Content) -> some View {
+      content.onChange(of: isTabViewSidebarAvailable, initial: true) {
+        isAvailable = isTabViewSidebarAvailable
+      }
+    }
   }
 }
 
