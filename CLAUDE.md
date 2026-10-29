@@ -111,6 +111,8 @@ xcrun simctl list devices available | grep -q '    Tower iPad (' ||
   xcrun simctl create "Tower iPad" com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M4-8GB
 xcrun simctl list devices available | grep -q '    Tower iPhone 17 Pro Max (' ||
   xcrun simctl create "Tower iPhone 17 Pro Max" com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max
+xcrun simctl list devices available | grep -q '    Tower iPhone Duo (' ||
+  xcrun simctl create "Tower iPhone Duo" com.apple.CoreSimulator.SimDeviceType.iPhone-Duo
 ```
 
 `simctl create` does not check the name, so without the `grep` guard a second run makes a
@@ -122,6 +124,11 @@ runtime the device type supports.
 | `Tower iPhone 17` | `iPhone-17` | Default, 6.3" |
 | `Tower iPad` | `iPad-Pro-13-inch-M4-8GB` | iPad pass and 13" screenshots |
 | `Tower iPhone 17 Pro Max` | `iPhone-17-Pro-Max` | 6.9" App Store screenshots only |
+| `Tower iPhone Duo` | `iPhone-Duo` | Foldable iPhone; manual checks of the folded and unfolded layouts |
+
+On Xcode 27.1 the iOS 27.1 runtime supports only the iPhone Duo, so the Duo gets 27.1 and the
+other three devices get iOS 27.0, the newest runtime that supports them, and `simctl create`
+with no runtime argument picks that correctly.
 
 Keep a name and its device type together. An iPad name on an iPhone type lets the iPad
 checks pass against a phone.
