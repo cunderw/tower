@@ -14,8 +14,8 @@ struct RootView: View {
   let theme: ThemePreference
   let onSignOut: () -> Void
 
-  /// Regular width only — the sidebar's per-instance Services section exists
-  /// there and has nowhere to live in a tab bar.
+  /// One half of `showsServiceTabs`, the sidebar's per-instance Services
+  /// section, which has nowhere to live in a compact tab bar.
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   /// Whether this `TabView` can show a sidebar, as its tabs' content reads it.
   /// Regular width is not enough on its own: an unfolded iPhone Duo is regular
@@ -253,6 +253,13 @@ struct RootView: View {
     // (local, keychain) read happens at the shell. The remote status checks
     // stay in the hub, where they follow tab selection.
     .task { servicesStore.reloadInstances() }
+    // An instance tab that disappears while selected (an iPad Split View
+    // narrowed to compact) would leave the selection on a tab that no longer
+    // exists. `open(service:)` already set the hub's selection to it, so the
+    // hub tab shows the same instance.
+    .onChange(of: showsServiceTabs) {
+      if !showsServiceTabs, case .service = selection { selection = .tab(.services) }
+    }
   }
 
   // UI glue only — the actual privacy-sensitive sequencing (dismiss and
@@ -274,11 +281,19 @@ struct RootView: View {
 struct TabSidebarAvailabilityReader: ViewModifier {
   @Binding var isAvailable: Bool
 
-  /// Before any tab has reported. `false` from iOS 27, so a device without a
-  /// sidebar never draws the instance tabs for a frame; before iOS 27 the
-  /// value cannot be read and regular width alone decides, as it always did.
-  static var initialValue: Bool {
-    if #available(iOS 27, *) { false } else { true }
+  /// Before any tab has reported, a guess the first report corrects. It has
+  /// to be right on iPad, not merely safe: a `TabView` first built without the
+  /// Services section and then rebuilt with it moves the bell and the gear onto
+  /// a second row under the top tab bar. So it is seeded from the idiom, `true`
+  /// on iPad and `false` on a phone (the iPhone Duo is phone idiom), and the
+  /// Duo never draws the instance tabs for a frame. Before iOS 27 the value
+  /// cannot be read and regular width alone decides, as it always did.
+  @MainActor static var initialValue: Bool {
+    if #available(iOS 27, *) {
+      UIDevice.current.userInterfaceIdiom == .pad
+    } else {
+      true
+    }
   }
 
   func body(content: Content) -> some View {
