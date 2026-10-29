@@ -217,6 +217,28 @@ final class ServicesHubUITests: XCTestCase {
     XCTAssertTrue(app.navigationBars["Tautulli"].waitForExistence(timeout: 5))
   }
 
+  func testInstancesStayOutOfATabBarWithNoSidebar() throws {
+    // The unfolded iPhone Duo is regular width with no sidebar, and its side
+    // tab bar listed every instance after the five real tabs (issue #18). On
+    // a compact iPhone this passes either way; the Duo is the device it is for.
+    let app = XCUIApplication()
+    app.launchArguments = ["--uitest-seed-dashboard"]
+    app.launch()
+    XCTAssertTrue(app.buttons["Services"].firstMatch.waitForExistence(timeout: 10))
+    try XCTSkipIf(
+      app.buttons["ToggleSideBar"].exists || app.buttons["Hide Sidebar"].exists,
+      "with a sidebar the instances are meant to be there")
+
+    // On the Dashboard nothing else carries an instance's name, so any
+    // element labelled with one is a tab. A wait, not `exists`: the instances
+    // load in a `.task` after the five real tabs are already on screen.
+    let names = ["Radarr", "Sonarr 4K", "NZBGet", "Tautulli"]
+    let instanceTab = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "label IN %@", names)).firstMatch
+    XCTAssertFalse(
+      instanceTab.waitForExistence(timeout: 5), "\(instanceTab.label) appears as a tab")
+  }
+
   /// iPadOS opens `.sidebarAdaptable` on the *top tab bar*, not the sidebar —
   /// the sidebar (and with it the Services section) is behind this toggle.
   /// Confirmed from the real accessibility tree, which is also where these
