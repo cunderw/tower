@@ -103,9 +103,8 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
 
   func dashboard() async throws -> DashboardSnapshot {
     switch outcome {
-    case .success, .parityActionFails:
-      return DashboardSnapshot.uitestFixture.with(parity: parity.status)
-    case .array:
+    // The default fixture's Stop button changes the fake array too.
+    case .success, .parityActionFails, .array:
       return DashboardSnapshot(
         array: array.status, parity: parity.status, services: DashboardSnapshot.uitestFixture.services)
     case .unknownMetrics:
@@ -1241,11 +1240,6 @@ extension DashboardSnapshot {
     parity: uitestFixture.parity,
     services: uitestFixture.services
   )
-
-  /// The same snapshot with another parity status.
-  fileprivate func with(parity: ParityStatus) -> DashboardSnapshot {
-    DashboardSnapshot(array: array, parity: parity, services: services)
-  }
 }
 // MARK: - Services
 

@@ -26,13 +26,16 @@ struct ArrayStateControls: View {
 
   var body: some View {
     if let actionInFlight {
-      HStack(spacing: 8) {
-        ProgressView()
-        Text(actionInFlight.progressTitle)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+      // A disabled button in the same style, so the card does not change
+      // height when the action starts and ends.
+      Button {} label: {
+        HStack(spacing: 6) {
+          ProgressView()
+          Text(actionInFlight.progressTitle)
+        }
       }
-      .accessibilityElement(children: .combine)
+      .buttonStyle(.bordered)
+      .disabled(true)
       .accessibilityIdentifier("array.progress")
     } else if let action = array.availableActions.first {
       button(for: action)
@@ -131,7 +134,8 @@ private struct ArrayPassphraseSheet: View {
         }
       }
     }
-    .presentationDetents([.medium, .large])
+    // One field and a footer: a full-height sheet is mostly empty.
+    .presentationDetents([.medium])
     .onAppear { isFieldFocused = true }
     // A swipe down closes the sheet without `close()`.
     .onDisappear { passphrase = "" }
