@@ -185,12 +185,12 @@ struct FakeMetricsStream: MetricsStreaming {
             tick += 1
           } while (try? await Task.sleep(for: .seconds(1))) != nil
         case .failsAfterDelay:
-          let start = ContinuousClock.now
-          repeat {
+          let deadline = ContinuousClock.now + Self.failureDelay
+          while ContinuousClock.now < deadline {
             continuation.yield(.cpu(percent: 47))
             continuation.yield(temperature)
-          } while ContinuousClock.now - start < Self.failureDelay
-            && (try? await Task.sleep(for: .seconds(1))) != nil
+            guard (try? await Task.sleep(for: .seconds(1))) != nil else { break }
+          }
           continuation.finish(throwing: AppError.serverUnreachable)
         }
         continuation.finish()
