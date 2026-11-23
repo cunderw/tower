@@ -155,6 +155,9 @@ final class ArrayStateUITests: XCTestCase {
     let field = openPassphraseSheet(in: app)
     let submit = app.buttons["array.passphrase.start"]
     XCTAssertFalse(submit.isEnabled, "Start is enabled with an empty passphrase")
+    // The field takes focus on its own. Wait for the keyboard, so the capture
+    // shows the sheet at rest rather than mid-rise.
+    _ = app.keyboards.firstMatch.waitForExistence(timeout: 3)
     try saveScreenshot(named: "array-passphrase-sheet")
 
     type(fakePassphrase, into: field)
