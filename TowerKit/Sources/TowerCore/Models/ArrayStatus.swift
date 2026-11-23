@@ -117,6 +117,9 @@ public struct SystemInfo: Equatable, Sendable {
   public let memoryPercent: Double?
   /// Bytes, not kilobytes — `metrics.memory` is the one place the API
   /// reports raw bytes.
+  ///
+  /// Total minus available, not the server's `used`: `used` counts buffers
+  /// and cache, and would disagree with `memoryPercent`.
   public let memoryUsedBytes: Int64?
   public let memoryTotalBytes: Int64?
 
