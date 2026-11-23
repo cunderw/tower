@@ -36,6 +36,7 @@ struct ParityControls: View {
     layout {
       ForEach(actions, id: \.self) { action in
         button(for: action)
+          .accessibilityIdentifier("parity.action.\(action.identifier)")
       }
     }
     .buttonStyle(.bordered)
@@ -59,7 +60,6 @@ struct ParityControls: View {
     switch action {
     case .start:
       Button { isConfirmingStart = true } label: { label(action, systemImage: "play.fill") }
-        .accessibilityIdentifier("parity.action.start")
         // On the button, not the container, so the iPad popover points at it.
         .confirmationDialog(
           "Start a parity check?", isPresented: $isConfirmingStart, titleVisibility: .visible
@@ -75,13 +75,10 @@ struct ParityControls: View {
         }
     case .pause:
       Button { perform(.pause, false) } label: { label(action, systemImage: "pause.fill") }
-        .accessibilityIdentifier("parity.action.pause")
     case .resume:
       Button { perform(.resume, false) } label: { label(action, systemImage: "play.fill") }
-        .accessibilityIdentifier("parity.action.resume")
     case .cancel:
       Button(role: .destructive) { isConfirmingCancel = true } label: { label(action, systemImage: "xmark") }
-        .accessibilityIdentifier("parity.action.cancel")
         .confirmationDialog(
           "Cancel the parity check?", isPresented: $isConfirmingCancel, titleVisibility: .visible
         ) {
