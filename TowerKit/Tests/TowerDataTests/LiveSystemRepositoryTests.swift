@@ -183,9 +183,10 @@ private func makeDashboardRepository(
 
 @Test func dashboardShowsDockerUnavailableWhenTheDockerServiceIsDisabled() async throws {
   // Issue #10: with the Docker service off, `Docker.containers` throws "Docker
-  // socket unavailable.". It and `docker` are both non-null, so the null
-  // reaches the root and the answer is `data: null`. In one query that failed
-  // the whole dashboard; split out, it may only take the Docker row with it.
+  // socket unavailable.". Before API 4.37 it and `docker` are both non-null,
+  // so the null reaches the root and the answer is `data: null`. In one query
+  // that failed the whole dashboard; split out, it may only take the Docker
+  // row with it. From 4.37 the null stops at `docker` (issue #21, below).
   let repository = makeDashboardRepository(
     host: "stub-dashboard-docker-disabled.test",
     containers: #"""

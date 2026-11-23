@@ -94,6 +94,21 @@ private func domainJSON(id: String, name: String?, state: String) -> String {
   }
 }
 
+@Test func domainsReportsADecodingErrorForANullVmsWithNoErrors() async {
+  // A null `vms` with no `errors` breaks the GraphQL spec. It must still reach
+  // the repository's own guard, not fail in Apollo's decoding first.
+  let repository = makeRepository(host: "stub-vms-null-no-errors.test", json: #"{"data": {"vms": null}}"#)
+  do {
+    _ = try await repository.domains()
+    Issue.record("expected domains() to throw")
+  } catch {
+    guard case .decoding? = error as? AppError else {
+      Issue.record("expected AppError.decoding, threw \(error)")
+      return
+    }
+  }
+}
+
 @Test func domainsReportsAvailableAndEmptyWhenTheServerSendsNoDomains() async throws {
   // The other direction, proven independently: a healthy server with no VMs
   // defined reports `[]`, and that must not read as "unavailable" either.
