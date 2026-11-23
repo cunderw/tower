@@ -10,5 +10,15 @@ nonisolated public final class TemperatureMetrics: MockObject {
   public typealias MockValueCollectionType = Array<Mock<TemperatureMetrics>>
 
   public struct MockFields: Sendable {
+    @Field<[TemperatureSensor]>("sensors") public var sensors
+  }
+}
+
+public extension Mock where O == TemperatureMetrics {
+  convenience init(
+    sensors: [Mock<TemperatureSensor>] = []
+  ) {
+    self.init()
+    _setList(sensors, for: \.sensors)
   }
 }

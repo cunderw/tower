@@ -1,0 +1,5 @@
+subscription LiveCpu {
+  systemMetricsCpu {
+    percentTotal
+  }
+}

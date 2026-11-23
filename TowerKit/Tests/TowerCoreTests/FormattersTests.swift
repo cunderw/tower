@@ -75,6 +75,13 @@ import Testing
   #expect(Formatters.temperature(nil) == "—")
 }
 
+@Test func liveTemperatureKeepsTheServersUnitAndRounds() {
+  #expect(Formatters.temperature(TemperatureReading(value: 52.6, unit: .celsius)) == "53°C")
+  #expect(Formatters.temperature(TemperatureReading(value: 126.4, unit: .fahrenheit)) == "126°F")
+  #expect(Formatters.temperature(TemperatureReading(value: 325, unit: .kelvin)) == "325 K")
+  #expect(Formatters.temperature(TemperatureReading(value: 585, unit: .rankine)) == "585°R")
+}
+
 @Test func durationFormatsDaysHoursMinutesFromSeconds() {
   // 37_800s, a parity check's length on a large array.
   #expect(Formatters.duration(seconds: 37_800) == "10h 30m")

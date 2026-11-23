@@ -1,0 +1,7 @@
+subscription LiveMemory {
+  systemMetricsMemory {
+    percentTotal
+    used
+    total
+  }
+}

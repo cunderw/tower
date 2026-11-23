@@ -24,6 +24,9 @@ let package = Package(
     .target(name: "TowerData", dependencies: [
       "TowerCore",
       .product(name: "Apollo", package: "apollo-ios"),
+      // The live dashboard metrics (issue #24) are GraphQL subscriptions over
+      // `graphql-transport-ws`. Depends only on Apollo.
+      .product(name: "ApolloWebSocket", package: "apollo-ios"),
       .product(name: "TowerAPI", package: "TowerAPI"),
     ]),
     .testTarget(name: "TowerCoreTests", dependencies: ["TowerCore"]),
@@ -37,6 +40,7 @@ let package = Package(
       .product(name: "Apollo", package: "apollo-ios"),
       .product(name: "ApolloAPI", package: "apollo-ios"),
       .product(name: "ApolloTestSupport", package: "apollo-ios"),
+      .product(name: "ApolloWebSocket", package: "apollo-ios"),
       .product(name: "TowerAPI", package: "TowerAPI"),
       .product(name: "TowerAPITestMocks", package: "TowerAPI"),
     ], resources: [.copy("Fixtures")]),
