@@ -183,9 +183,10 @@ private func makeDashboardRepository(
 
 @Test func dashboardShowsDockerUnavailableWhenTheDockerServiceIsDisabled() async throws {
   // Issue #10: with the Docker service off, `Docker.containers` throws "Docker
-  // socket unavailable.". It and `docker` are both non-null, so the null
-  // reaches the root and the answer is `data: null`. In one query that failed
-  // the whole dashboard; split out, it may only take the Docker row with it.
+  // socket unavailable.". Before API 4.37 it and `docker` are both non-null,
+  // so the null reaches the root and the answer is `data: null`. In one query
+  // that failed the whole dashboard; split out, it may only take the Docker
+  // row with it. From 4.37 the null stops at `docker` (issue #21, below).
   let repository = makeDashboardRepository(
     host: "stub-dashboard-docker-disabled.test",
     containers: #"""
@@ -241,6 +242,40 @@ private func makeDashboardRepository(
   #expect(snapshot.services.containersSummary == "Unavailable")
   #expect(snapshot.services.vmsSummary == "Unavailable")
   #expect(snapshot.services.sharesTotal == 1)
+}
+
+@Test func dashboardShowsDockerUnavailableWhenTheServerNullsOnlyDocker() async throws {
+  // Issue #21: from API 4.37 `Query.docker` is nullable, so the null from a
+  // failed `containers` stops at `docker`.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-docker-null.test",
+    containers: #"""
+    {"data": {"docker": null}, "errors": [{"message": "Docker socket unavailable.", "path": ["docker", "containers"]}]}
+    """#
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.containersSummary == "Unavailable")
+  #expect(snapshot.array.state == "STARTED")
+  #expect(snapshot.services.sharesTotal == 1)
+  #expect(snapshot.services.vmsSummary == "1 of 3 running")
+}
+
+@Test func dashboardShowsVMsUnavailableWhenTheServerNullsOnlyVms() async throws {
+  // Issue #21: from API 4.37 `Query.vms` is nullable too.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-vms-null.test",
+    vms: #"""
+    {"data": {"vms": null}, "errors": [{"message": "Failed to retrieve VMs", "path": ["vms"]}]}
+    """#
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.vmsSummary == "Unavailable")
+  #expect(snapshot.array.state == "STARTED")
+  #expect(snapshot.services.containersSummary == "1 of 2 running")
 }
 
 @Test func dashboardReadsAForbiddenCountsQueryAsUnavailable() async throws {

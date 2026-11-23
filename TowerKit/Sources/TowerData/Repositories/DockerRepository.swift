@@ -60,9 +60,14 @@ public struct LiveDockerRepository: DockerRepositoryProtocol {
     guard let data = response.data else {
       throw AppError.decoding("Empty response for DockerContainers.")
     }
+    // `docker` is nullable from API 4.37 (issue #21). A null one arrives with
+    // an error, which the check above has already thrown.
+    guard let docker = data.docker else {
+      throw AppError.decoding("No docker in DockerContainers response.")
+    }
     // Sort by display name so list order is stable across refreshes — the
     // server does not guarantee `containers` order.
-    return data.docker.containers
+    return docker.containers
       .map(Container.init(from:))
       .sorted { $0.displayName < $1.displayName }
   }
@@ -115,7 +120,10 @@ public struct LiveDockerRepository: DockerRepositoryProtocol {
     guard let data = response.data else {
       throw AppError.decoding("Empty response for DockerLogs.")
     }
-    return ContainerLogs(from: data.docker.logs)
+    guard let docker = data.docker else {
+      throw AppError.decoding("No docker in DockerLogs response.")
+    }
+    return ContainerLogs(from: docker.logs)
   }
 
   /// Shared body for `start`/`stop`/`restart`/`pause`/`unpause`: Apollo

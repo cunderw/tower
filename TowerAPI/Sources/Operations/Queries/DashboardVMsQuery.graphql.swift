@@ -19,7 +19,7 @@ nonisolated public struct DashboardVMsQuery: GraphQLQuery {
 
     @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.Query }
     @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
-      .field("vms", Vms.self),
+      .field("vms", Vms?.self),
     ] }
     @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
       DashboardVMsQuery.Data.self
@@ -33,7 +33,7 @@ nonisolated public struct DashboardVMsQuery: GraphQLQuery {
     /// #### Description:
     ///
     /// Get information about all VMs on the system
-    public var vms: Vms { __data["vms"] }
+    public var vms: Vms? { __data["vms"] }
 
     /// Vms
     ///

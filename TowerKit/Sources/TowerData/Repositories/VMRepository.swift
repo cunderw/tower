@@ -56,6 +56,11 @@ public struct LiveVMRepository: VMRepositoryProtocol {
     guard let data = response.data else {
       throw AppError.decoding("Empty response for VMs.")
     }
+    // `vms` is nullable from API 4.37 (issue #21). A null one arrives with an
+    // error, which the check above has already thrown.
+    guard let vms = data.vms else {
+      throw AppError.decoding("No vms in VMs response.")
+    }
     // `?.map` and not `??  []`: a nil `domains` must stay nil all the way to
     // the UI. See `VMInventory`'s doc comment — collapsing it to an empty
     // array here would tell a user whose VM manager is off that they have no VMs.
@@ -64,7 +69,7 @@ public struct LiveVMRepository: VMRepositoryProtocol {
     // server does not guarantee `domains` order, and a list that reshuffles
     // under a 30-second poll is unusable.
     return VMInventory(
-      domains: data.vms.domains?
+      domains: vms.domains?
         .map(VMDomain.init(from:))
         .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     )
