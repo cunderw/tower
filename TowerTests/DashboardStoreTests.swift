@@ -152,7 +152,10 @@ struct DashboardStoreTests {
 
 // MARK: - Live metrics (issue #24)
 
+// A time limit, because these tests park the store on gates: a regression
+// there hangs rather than fails.
 @MainActor
+@Suite(.timeLimit(.minutes(1)))
 struct DashboardLiveMetricsTests {
   private static func system(cpu: Double, memory: Double) -> SystemInfo {
     SystemInfo(
