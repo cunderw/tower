@@ -92,6 +92,13 @@ private struct ContainerDetailContent: View {
     }
     .navigationTitle(container.displayName)
     .navigationBarTitleDisplayMode(.large)
+    // Whole-point section geometry (issue #29). The default section header
+    // measures 40.33 pt and the default spacing 17.5 pt on a 3x iPhone, so
+    // every other card started half a pixel off the grid. Rounding then left
+    // a 1 px seam of background under its first row. 41 + 17 is the same
+    // 58 pt gap to within a sixth of a point.
+    .environment(\.defaultMinListHeaderHeight, 41)
+    .listSectionSpacing(17)
   }
 
   // MARK: - Logs
