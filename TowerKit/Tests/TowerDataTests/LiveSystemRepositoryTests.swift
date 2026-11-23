@@ -479,6 +479,17 @@ struct LiveDashboardTests {
       #expect(vmsRunning <= vmsTotal)
     }
     #expect(snapshot.services.sharesTotal >= 0)
+
+    // The memory detail line and the gauge must describe the same quantity.
+    if let used = snapshot.array.system?.memoryUsedBytes,
+       let total = snapshot.array.system?.memoryTotalBytes,
+       let percent = snapshot.array.system?.memoryPercent {
+      print("[live-dashboard] memory used \(used) of \(total), percent \(percent)")
+      #expect(total > 0 && used <= total)
+      #expect(abs(Double(used) / Double(total) * 100 - percent) <= 1)
+    } else {
+      Issue.record("the real server reported no memory metrics")
+    }
   }
 
   /// `Dashboard.graphql` must select `device`/`rotational`/IO counters for

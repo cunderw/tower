@@ -91,6 +91,7 @@ query Dashboard {
     memory {
       percentTotal
       used
+      available
       total
     }
   }

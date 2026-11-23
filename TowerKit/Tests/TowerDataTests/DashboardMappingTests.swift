@@ -384,8 +384,11 @@ func dashboardSnapshot(from mock: Mock<TowerAPITestMocks.Query>) async -> Dashbo
     info: emptyInfo(),
     metrics: Mock<TowerAPITestMocks.Metrics>(
       cpu: Mock<TowerAPITestMocks.CpuUtilization>(percentTotal: 5.5),
+      // The server's `used` is total minus free, so it counts reclaimable
+      // buffers and cache (28 GiB here). The mapping reports total minus
+      // available instead, the figure `percentTotal` is computed from.
       memory: Mock<TowerAPITestMocks.MemoryUtilization>(
-        percentTotal: 60.0, total: 34_359_738_368, used: 12_884_901_888
+        available: 13_743_895_347, percentTotal: 60.0, total: 34_359_738_368, used: 30_064_771_072
       )
     ),
     shares: [],
@@ -394,9 +397,9 @@ func dashboardSnapshot(from mock: Mock<TowerAPITestMocks.Query>) async -> Dashbo
 
   let snapshot = await dashboardSnapshot(from: mock)
 
-  #expect(snapshot.array.system?.memoryUsedBytes == 12_884_901_888)
+  #expect(snapshot.array.system?.memoryUsedBytes == 20_615_843_021)
   #expect(snapshot.array.system?.memoryTotalBytes == 34_359_738_368)
-  // Unchanged sibling field, to prove `used`/`total` land alongside
+  // Unchanged sibling field, to prove the byte figures land alongside
   // `percentTotal` rather than replacing it.
   #expect(snapshot.array.system?.memoryPercent == 60.0)
 }

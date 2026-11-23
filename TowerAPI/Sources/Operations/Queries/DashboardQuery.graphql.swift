@@ -8,7 +8,7 @@ nonisolated public struct DashboardQuery: GraphQLQuery {
   public static let operationName: String = "Dashboard"
   public static let operationDocument: ApolloAPI.OperationDocument = .init(
     definition: .init(
-      #"query Dashboard { array { __typename state capacity { __typename kilobytes { __typename free used total } } parityCheckStatus { __typename status correcting progress errors speed date duration } disks { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } parities { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } caches { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } } info { __typename os { __typename distro release uptime } cpu { __typename brand cores threads } } metrics { __typename cpu { __typename percentTotal } memory { __typename percentTotal used total } } shares { __typename id } }"#
+      #"query Dashboard { array { __typename state capacity { __typename kilobytes { __typename free used total } } parityCheckStatus { __typename status correcting progress errors speed date duration } disks { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } parities { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } caches { __typename id idx name device status temp size fsFree fsUsed fsSize fsType rotational numReads numWrites numErrors type } } info { __typename os { __typename distro release uptime } cpu { __typename brand cores threads } } metrics { __typename cpu { __typename percentTotal } memory { __typename percentTotal used available total } } shares { __typename id } }"#
     ))
 
   public init() {}
@@ -492,6 +492,7 @@ nonisolated public struct DashboardQuery: GraphQLQuery {
           .field("__typename", String.self),
           .field("percentTotal", Double.self),
           .field("used", TowerAPI.BigInt.self),
+          .field("available", TowerAPI.BigInt.self),
           .field("total", TowerAPI.BigInt.self),
         ] }
         @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
@@ -502,6 +503,8 @@ nonisolated public struct DashboardQuery: GraphQLQuery {
         public var percentTotal: Double { __data["percentTotal"] }
         /// Used memory in bytes
         public var used: TowerAPI.BigInt { __data["used"] }
+        /// Available memory in bytes
+        public var available: TowerAPI.BigInt { __data["available"] }
         /// Total system memory in bytes
         public var total: TowerAPI.BigInt { __data["total"] }
       }

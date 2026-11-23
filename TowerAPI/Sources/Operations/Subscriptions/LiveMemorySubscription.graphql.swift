@@ -8,7 +8,7 @@ nonisolated public struct LiveMemorySubscription: GraphQLSubscription {
   public static let operationName: String = "LiveMemory"
   public static let operationDocument: ApolloAPI.OperationDocument = .init(
     definition: .init(
-      #"subscription LiveMemory { systemMetricsMemory { __typename percentTotal used total } }"#
+      #"subscription LiveMemory { systemMetricsMemory { __typename percentTotal used available total } }"#
     ))
 
   public init() {}
@@ -43,6 +43,7 @@ nonisolated public struct LiveMemorySubscription: GraphQLSubscription {
         .field("__typename", String.self),
         .field("percentTotal", Double.self),
         .field("used", TowerAPI.BigInt.self),
+        .field("available", TowerAPI.BigInt.self),
         .field("total", TowerAPI.BigInt.self),
       ] }
       @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
@@ -53,6 +54,8 @@ nonisolated public struct LiveMemorySubscription: GraphQLSubscription {
       public var percentTotal: Double { __data["percentTotal"] }
       /// Used memory in bytes
       public var used: TowerAPI.BigInt { __data["used"] }
+      /// Available memory in bytes
+      public var available: TowerAPI.BigInt { __data["available"] }
       /// Total system memory in bytes
       public var total: TowerAPI.BigInt { __data["total"] }
     }
