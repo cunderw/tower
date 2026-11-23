@@ -90,11 +90,14 @@ struct ArrayStateControls: View {
 /// No `.textContentType(.password)`: that offers to save the passphrase to
 /// the user's passwords, and Tower must not store it anywhere. A fresh sheet
 /// makes a fresh `@State`, so the field is empty every time it opens.
+///
+/// No focus on appear: the field waits for a tap. With focus set on appear,
+/// the simulator raised the medium sheet to nearly full height for a keyboard
+/// it did not show.
 private struct ArrayPassphraseSheet: View {
   let start: (String) -> Void
 
   @State private var passphrase = ""
-  @FocusState private var isFieldFocused: Bool
   @Environment(\.dismiss) private var dismiss
 
   private var isValid: Bool { ArrayPassphrase.isValid(passphrase) }
@@ -106,7 +109,6 @@ private struct ArrayPassphraseSheet: View {
       Form {
         Section {
           SecureField("Passphrase", text: $passphrase)
-            .focused($isFieldFocused)
             .submitLabel(.go)
             .onSubmit(submit)
             .accessibilityIdentifier("array.passphrase.field")
@@ -136,7 +138,6 @@ private struct ArrayPassphraseSheet: View {
     }
     // One field and a footer: a full-height sheet is mostly empty.
     .presentationDetents([.medium])
-    .onAppear { isFieldFocused = true }
     // A swipe down closes the sheet without `close()`.
     .onDisappear { passphrase = "" }
   }
