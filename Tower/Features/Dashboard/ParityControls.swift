@@ -47,7 +47,9 @@ struct ParityControls: View {
   /// screen while the hero card keeps them together.
   private func label(_ action: ParityAction, systemImage: String) -> some View {
     HStack(spacing: 6) {
+      // Hidden, as `Label` hides it: VoiceOver reads the title alone.
       Image(systemName: systemImage)
+        .accessibilityHidden(true)
       Text(action.title)
     }
   }

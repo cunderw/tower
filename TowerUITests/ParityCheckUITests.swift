@@ -72,6 +72,9 @@ final class ParityCheckUITests: XCTestCase {
 
     XCTAssertTrue(action("pause", in: app).waitForExistence(timeout: 5))
     XCTAssertTrue(action("cancel", in: app).exists)
+    // VoiceOver reads the title alone, not the icon's name as well.
+    XCTAssertEqual(action("pause", in: app).label, "Pause")
+    XCTAssertEqual(action("cancel", in: app).label, "Cancel Check")
     XCTAssertFalse(action("start", in: app).exists, "Start must not appear while a check runs")
     XCTAssertFalse(action("resume", in: app).exists, "Resume must not appear while a check runs")
     try saveScreenshot(named: "parity-dashboard-running")
