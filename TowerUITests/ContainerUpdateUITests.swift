@@ -22,7 +22,7 @@ final class ContainerUpdateUITests: XCTestCase {
 
   /// `state` sets `UITEST_DOCKER_STATE`: `update-fails` makes every update
   /// fail with a server message, and `many-updates` gives three containers an
-  /// update, takes two seconds per update, and fails `uitest-container-5`.
+  /// update, takes three seconds per update, and fails `uitest-container-5`.
   private func launchOnDocker(state: String? = nil) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments = ["--uitest-seed-dashboard"]

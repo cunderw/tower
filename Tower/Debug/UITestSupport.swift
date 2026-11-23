@@ -280,12 +280,12 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
 
   /// Pulls nothing; recreates the container under `updatedID(for:)` with no
   /// update to report. `update-fails` throws a server message for every
-  /// container. `many-updates` takes two seconds per update, so a test can see
+  /// container. `many-updates` takes three seconds per update, so a test can see
   /// "Update All" progress, and `uitest-container-5` fails there as it does
   /// for every other action.
   func update(id: String) async throws -> Container {
     if Self.dockerState == "many-updates" {
-      try? await Task.sleep(for: .seconds(2))
+      try? await Task.sleep(for: .seconds(3))
     }
     try failIfActionFailureFixture(id)
     if Self.dockerState == "update-fails" {
@@ -314,7 +314,13 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
     )
   }
 
+  /// `many-updates` holds a Start in flight for 15 seconds, so a capture can
+  /// start a container just after "Update All" begins and have the run reach
+  /// it while that Start is still going: the run skips the container.
   func start(id: String) async throws -> ContainerStateUpdate {
+    if Self.dockerState == "many-updates" {
+      try? await Task.sleep(for: .seconds(15))
+    }
     try failIfActionFailureFixture(id)
     return ContainerStateUpdate(id: id, state: .running, status: "Up less than a second")
   }

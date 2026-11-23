@@ -263,15 +263,17 @@ extension DockerListView {
   }
 
   /// A failure outranks an update still running on the server, which
-  /// outranks success.
+  /// outranks a skipped container. Green only when every container updated.
   @ViewBuilder
   private func reportIcon(_ report: ContainerUpdateReport) -> some View {
     if report.hasFailure {
       Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.red)
     } else if report.hasStillRunning {
       Image(systemName: "clock.fill").foregroundStyle(Color.orange)
-    } else {
+    } else if report.entries.allSatisfy({ $0.outcome == .updated }) {
       Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.green)
+    } else {
+      Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Color.orange)
     }
   }
 

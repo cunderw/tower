@@ -429,6 +429,38 @@ final class ScreenshotTourUITests: XCTestCase {
     try captureSeededSingleUpdate(state: "update-times-out", named: "docker-update-still-running")
   }
 
+  /// "Update All" that skips a container with another action in flight: the
+  /// orange skipped icon, not the green success one.
+  func testCaptureUpdateAllSkipped() throws {
+    // `many-updates` gives three containers an update, takes three seconds
+    // per update, and holds a Start in flight for 15 seconds. The run reaches
+    // emby (`uitest-container-5`) third, so a Start swiped on it just after
+    // the run begins is still in flight when its turn comes, and the run
+    // skips it. emby's Start fails, but only after the capture.
+    let app = launchSeededOnDocker(state: "many-updates")
+    let emby = app.descendants(matching: .any).matching(identifier: "docker.row.uitest-container-5").firstMatch
+    XCTAssertTrue(emby.waitForExistence(timeout: 10), "emby never appeared")
+
+    let updateAll = app.buttons["docker.updateAll"]
+    XCTAssertTrue(updateAll.waitForExistence(timeout: 5), "no Update All with three updates")
+    updateAll.tap()
+    let confirm = dialogButton("Update All", in: app)
+    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update All asked for no confirmation")
+    confirm.tap()
+
+    // A leading swipe commits Start in the iPad's narrow column and parks the
+    // row open on iPhone (see `DockerUITests.startBySwipe`).
+    emby.swipeRight()
+    let startButton = app.buttons["Start"]
+    if startButton.waitForExistence(timeout: 2) { startButton.tap() }
+
+    let report = app.staticTexts.matching(
+      NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "docker.updateReport", "Skipped emby")
+    ).firstMatch
+    XCTAssertTrue(report.waitForExistence(timeout: 15), "Update All reported no skipped container")
+    try capture(named: "docker-update-all-skipped")
+  }
+
   /// "Update All" where one of three fails: the multi-line result, which is
   /// tallest in the iPad's narrow list column.
   func testCaptureUpdateAllPartialFailure() throws {
