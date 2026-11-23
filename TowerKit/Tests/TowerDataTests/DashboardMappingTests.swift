@@ -385,8 +385,9 @@ func dashboardSnapshot(from mock: Mock<TowerAPITestMocks.Query>) async -> Dashbo
     metrics: Mock<TowerAPITestMocks.Metrics>(
       cpu: Mock<TowerAPITestMocks.CpuUtilization>(percentTotal: 5.5),
       // The server's `used` is total minus free, so it counts reclaimable
-      // buffers and cache (28 GiB here). The mapping reports total minus
-      // available instead, the figure `percentTotal` is computed from.
+      // buffers and cache: `used` is 28 GiB here, of which about 8.8 GiB is
+      // cache. The mapping reports total minus available (19.2 GiB) instead,
+      // the figure `percentTotal` is computed from.
       memory: Mock<TowerAPITestMocks.MemoryUtilization>(
         available: 13_743_895_347, percentTotal: 60.0, total: 34_359_738_368, used: 30_064_771_072
       )
