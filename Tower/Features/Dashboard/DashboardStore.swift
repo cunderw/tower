@@ -44,7 +44,6 @@ final class DashboardStore: LoadingStore {
   private let repository: any SystemRepositoryProtocol
   private let metrics: any MetricsStreaming
   private let staleAfter: [LiveMetric: Duration]
-  private let retryAfter: Duration
   private let sleep: @Sendable (Duration) async throws -> Void
 
   /// - Parameters:
@@ -54,9 +53,6 @@ final class DashboardStore: LoadingStore {
   ///     value in, and a stream that has gone quiet without closing does not
   ///     freeze an old reading on screen. The CPU temperature never expires;
   ///     see `cpuTemperature`.
-  ///   - retryAfter: How long `keepStreamingLiveMetrics()` waits after a
-  ///     stream ends before it starts the next one. The poll's interval, so a
-  ///     dropped socket comes back by the next poll.
   ///   - sleep: Injected, as `poll` injects it, so tests use no real time.
   init(
     repository: any SystemRepositoryProtocol,
@@ -64,32 +60,17 @@ final class DashboardStore: LoadingStore {
     staleAfter: [LiveMetric: Duration] = [
       .cpu: .seconds(3), .memory: .seconds(6),
     ],
-    retryAfter: Duration = .towerPoll,
     sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
   ) {
     self.repository = repository
     self.metrics = metrics
     self.staleAfter = staleAfter
-    self.retryAfter = retryAfter
     self.sleep = sleep
   }
 
   /// The polled reading with the live values on top.
   func system(for snapshot: DashboardSnapshot) -> SystemInfo? {
     snapshot.array.system?.overlaid(with: liveMetrics)
-  }
-
-  /// Runs the live stream until the caller's task is cancelled. When a
-  /// stream ends or fails, the next one starts `retryAfter` later, so one
-  /// dropped socket costs at most one poll interval of live values, not the
-  /// rest of the visit.
-  func keepStreamingLiveMetrics() async {
-    while !Task.isCancelled {
-      await streamLiveMetrics()
-      // Cancellation ended that stream: the dashboard has gone, so stop here.
-      guard !Task.isCancelled else { return }
-      do { try await sleep(retryAfter) } catch { return }
-    }
   }
 
   /// Applies live readings until the stream ends or the caller's task is
@@ -99,6 +80,11 @@ final class DashboardStore: LoadingStore {
   /// **Silent on failure.** A stream error never reaches `state`: no red
   /// text, and no `.actionFailed`. The dashboard falls back to its poll, which
   /// is the same number a few seconds older.
+  ///
+  /// **No restart here.** The live source retries each subscription itself
+  /// (`LiveMetricsRepository`), so its stream ends only when this task is
+  /// cancelled. A source that ends on its own (the UI tests' failing fake)
+  /// stays ended until the dashboard appears again.
   func streamLiveMetrics() async {
     streamGeneration += 1
     let generation = streamGeneration

@@ -159,8 +159,9 @@ final class DashboardUITests: XCTestCase {
   }
 
   /// The acceptance criterion: on a websocket failure the dashboard falls
-  /// back to its polled values and shows no alarming message. The stream
-  /// restarts only after a poll interval (30 s), well after this test ends. The live value
+  /// back to its polled values and shows no alarming message. The fake's
+  /// stream fails and stays failed; the live repository's own retry is
+  /// covered in the kit tests. The live value
   /// is seen first, so a stream that never ran cannot pass this.
   func testAFailingStreamFallsBackToThePolledValuesWithoutAnError() {
     let app = launch(state: "live-metrics-fails")

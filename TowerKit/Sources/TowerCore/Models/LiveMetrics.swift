@@ -3,9 +3,11 @@ import Foundation
 /// A source of live system metrics. `TowerData` implements it over the
 /// server's GraphQL subscriptions; demo mode and the UI tests supply their own.
 ///
-/// The stream ends when the consumer cancels it, or when the source stops.
-/// A thrown error means only that the live values stopped: the caller falls
-/// back to the polled values and shows no error.
+/// The stream ends when the consumer cancels it, or when the source gives up.
+/// A source that can recover retries inside the stream instead of ending it,
+/// as the live one does per subscription. A thrown error means only that the
+/// live values stopped: the caller falls back to the polled values and shows
+/// no error.
 public protocol MetricsStreaming: Sendable {
   func liveMetrics() -> AsyncThrowingStream<LiveMetricsUpdate, any Error>
 }

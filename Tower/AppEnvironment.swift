@@ -34,7 +34,8 @@ struct AppEnvironment {
     makeRepository: { server in
       LiveSystemRepository(provider: ApolloClientProvider(server: server))
     },
-    makeMetricsStream: { server in LiveMetricsRepository(server: server) },
+    // Each subscription that drops retries after one poll interval.
+    makeMetricsStream: { server in LiveMetricsRepository(server: server, retryAfter: .towerPoll) },
     makeDockerRepository: { server in
       LiveDockerRepository(provider: ApolloClientProvider(server: server))
     },

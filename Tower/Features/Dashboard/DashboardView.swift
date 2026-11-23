@@ -58,7 +58,7 @@ struct DashboardView: View {
     .pollingRefresh(isActive: isSelected) { await store.refresh() }
     // Live CPU, memory and temperature beside the poll, on the same key, so
     // the stream stops when the tab leaves and when the app backgrounds.
-    .whileVisible(isActive: isSelected) { await store.keepStreamingLiveMetrics() }
+    .whileVisible(isActive: isSelected) { await store.streamLiveMetrics() }
   }
 
   @ViewBuilder

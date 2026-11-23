@@ -366,38 +366,6 @@ struct DashboardLiveMetricsTests {
     await streaming.value
   }
 
-  // One dropped socket must not leave the dashboard on polling for the rest
-  // of the visit: the next stream starts one poll interval later.
-  @Test func anEndedStreamRestartsAfterOnePollInterval() async {
-    let retryClock = Gate()
-    let metrics = ScriptedMetricsStream()
-    let store = DashboardStore(
-      repository: StubDashboardRepository(results: []), metrics: metrics,
-      retryAfter: .seconds(30),
-      sleep: { delay in
-        if delay == .seconds(30) { await retryClock.enter() } else { try await Task.sleep(for: .seconds(3_600)) }
-      }
-    )
-    let streaming = Task { await store.keepStreamingLiveMetrics() }
-    await metrics.waitForCall(0)
-
-    metrics.continuation(0).finish(throwing: AppError.serverUnreachable)
-    await retryClock.waitUntilEntered(atLeast: 1)
-    #expect(metrics.callCount == 1, "the stream restarted before the poll interval passed")
-
-    await retryClock.release(0)
-    await metrics.waitForCall(1)
-    metrics.continuation(1).yield(.cpu(percent: 47))
-    await settle { store.liveMetrics.cpuPercent != nil }
-    #expect(store.liveMetrics.cpuPercent == 47)
-
-    // Leaving the dashboard cancels the loop inside a stream. It must stop
-    // there, not wait out another interval.
-    streaming.cancel()
-    await streaming.value
-    #expect(metrics.callCount == 2)
-  }
-
   // A tab switch cancels one stream and starts the next together. The old
   // stream's cleanup lands second and must not wipe the new readings.
   @Test func anOldStreamsCleanupLeavesANewStreamsReadings() async {

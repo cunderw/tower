@@ -15,23 +15,27 @@ import TowerCore
 private typealias Frame = @Sendable (String) -> String
 
 /// One `WebSocketTask` per transport. Answers `connection_init` with
-/// `connection_ack`, and a `subscribe` with the frames scripted for that
-/// operation. With no frame queued, `receive()` suspends, as a live socket
-/// does between readings; a return or a throw there would end the stream.
+/// `connection_ack`, and a `subscribe` with the frames its session scripts for
+/// that operation. With no frame queued, `receive()` suspends, as a live
+/// socket does between readings; a return or a throw there would end the
+/// stream. `push(_:)` sends a later reading on an open subscription.
 private final class ScriptedSocket: WebSocketTask, @unchecked Sendable {
   private let lock = NSLock()
-  private let script: [String: [Frame]]
+  private let framesFor: @Sendable (String) -> [Frame]
   private var inbox: [String] = []
   private var waiter: CheckedContinuation<URLSessionWebSocketTask.Message, any Error>?
   private var sentFrames: [[String: Any]] = []
   private var isCancelled = false
+  private var subscription: (name: String, id: String)?
 
-  init(script: [String: [Frame]]) {
-    self.script = script
+  init(framesFor: @escaping @Sendable (String) -> [Frame]) {
+    self.framesFor = framesFor
   }
 
   var sent: [[String: Any]] { lock.withLock { sentFrames } }
   var cancelled: Bool { lock.withLock { isCancelled } }
+  /// The operation this socket subscribed to, once it has.
+  var operation: String? { lock.withLock { subscription?.name } }
 
   func resume() {}
 
@@ -47,10 +51,16 @@ private final class ScriptedSocket: WebSocketTask, @unchecked Sendable {
       let id = frame["id"] as? String ?? ""
       let payload = frame["payload"] as? [String: Any]
       let name = payload?["operationName"] as? String ?? ""
-      for makeFrame in script[name] ?? [] { deliver(makeFrame(id)) }
+      lock.withLock { subscription = (name, id) }
+      for makeFrame in framesFor(name) { deliver(makeFrame(id)) }
     default:
       break
     }
+  }
+
+  func push(_ frame: Frame) {
+    guard let id = lock.withLock({ subscription?.id }) else { return }
+    deliver(frame(id))
   }
 
   func receive() async throws -> URLSessionWebSocketTask.Message {
@@ -87,21 +97,43 @@ private final class ScriptedSocket: WebSocketTask, @unchecked Sendable {
   }
 }
 
+/// Makes one `ScriptedSocket` per transport. `attempts[name][n]` is what the
+/// n-th subscribe to `name` receives; the last entry repeats for every later
+/// attempt. `script:` is the one-attempt form.
 private final class ScriptedSession: WebSocketURLSession, @unchecked Sendable {
   private let lock = NSLock()
-  private let script: [String: [Frame]]
+  private let attempts: [String: [[Frame]]]
+  private var subscribeCounts: [String: Int] = [:]
   private var made: [(request: URLRequest, socket: ScriptedSocket)] = []
 
-  init(script: [String: [Frame]]) {
-    self.script = script
+  init(attempts: [String: [[Frame]]]) {
+    self.attempts = attempts
+  }
+
+  convenience init(script: [String: [Frame]]) {
+    self.init(attempts: script.mapValues { [$0] })
   }
 
   var sockets: [(request: URLRequest, socket: ScriptedSocket)] { lock.withLock { made } }
 
+  /// The sockets that subscribed to `operation`, oldest first.
+  func sockets(for operation: String) -> [ScriptedSocket] {
+    sockets.map(\.socket).filter { $0.operation == operation }
+  }
+
   func webSocketTask(with request: URLRequest) -> any WebSocketTask {
-    let socket = ScriptedSocket(script: script)
+    let socket = ScriptedSocket { [weak self] name in self?.frames(for: name) ?? [] }
     lock.withLock { made.append((request, socket)) }
     return socket
+  }
+
+  private func frames(for name: String) -> [Frame] {
+    lock.withLock {
+      let attempt = subscribeCounts[name, default: 0]
+      subscribeCounts[name] = attempt + 1
+      guard let scripted = attempts[name], !scripted.isEmpty else { return [] }
+      return scripted[min(attempt, scripted.count - 1)]
+    }
   }
 }
 
@@ -153,6 +185,55 @@ private func firstUpdates(
 private func eventually(_ condition: () -> Bool) async throws {
   for _ in 0..<200 where !condition() {
     try await Task.sleep(for: .milliseconds(10))
+  }
+}
+
+private let memory61 = next(
+  #"{"systemMetricsMemory":{"__typename":"MemoryUtilization","percentTotal":61.0,"used":40884409507,"total":67023622144}}"#
+)
+
+/// What a listening task has received, readable while it still listens.
+private final class Received: @unchecked Sendable {
+  private let lock = NSLock()
+  private var all: [LiveMetricsUpdate] = []
+  private var didEnd = false
+
+  var updates: [LiveMetricsUpdate] { lock.withLock { all } }
+  var ended: Bool { lock.withLock { didEnd } }
+
+  func count(of metric: LiveMetric) -> Int {
+    lock.withLock { all.filter { $0.metric == metric }.count }
+  }
+
+  /// Reads `stream` to its end, then marks the end, error or not.
+  func drain(_ stream: AsyncThrowingStream<LiveMetricsUpdate, any Error>) async {
+    do {
+      for try await update in stream { lock.withLock { all.append(update) } }
+    } catch {}
+    lock.withLock { didEnd = true }
+  }
+}
+
+/// A retry interval the test ends by hand. Each `wait()` lasts until the test
+/// calls `release()` once for it, in order. It polls with `Task.sleep`, so a
+/// cancelled wait throws, as the real one does.
+private final class RetryClock: @unchecked Sendable {
+  private let lock = NSLock()
+  private var started = 0
+  private var released = 0
+
+  var waits: Int { lock.withLock { started } }
+
+  func release() { lock.withLock { released += 1 } }
+
+  func wait() async throws {
+    let index = lock.withLock {
+      started += 1
+      return started - 1
+    }
+    while lock.withLock({ index >= released }) {
+      try await Task.sleep(for: .milliseconds(5))
+    }
   }
 }
 
@@ -250,41 +331,103 @@ struct LiveMetricsRepositoryTests {
     #expect(session.sockets.allSatisfy { $0.socket.cancelled })
   }
 
-  // A subscription that fails beside two live ones must not leave its metric
-  // dead for the rest of the visit. It ends the whole stream, so the
-  // dashboard's retry restarts all three.
-  @Test func oneFailingSubscriptionEndsTheStreamAndClosesEverySocket() async throws {
+  // MARK: - Per-subscription retry
+
+  // The older-server case: a server whose API lacks one of the three
+  // subscriptions fails it at once, every time. The other two must keep
+  // sending, on the sockets they opened, for as long as the dashboard listens.
+  @Test func aSubscriptionTheServerLacksLeavesTheOtherTwoLive() async throws {
     let session = ScriptedSession(script: [
-      "LiveCpu": [graphQLError("Forbidden resource")],
-      // Memory and temperature send and then stay open, as live ones do.
+      "LiveCpu": [graphQLError(#"Cannot query field \"systemMetricsCpu\" on type \"Subscription\"."#)],
       "LiveMemory": [memory58],
       "LiveTemperature": [temperature([sensor("CPU_CORE", 30)])],
     ])
-    let repository = LiveMetricsRepository(server: server, session: session)
+    let repository = LiveMetricsRepository(
+      server: server, session: session, retryAfter: .seconds(30),
+      sleep: { _ in try await Task.sleep(for: .milliseconds(5)) }
+    )
+    let received = Received()
+    let listening = Task { await received.drain(repository.liveMetrics()) }
 
-    var thrown: (any Error)?
-    do {
-      for try await _ in repository.liveMetrics() {}
-    } catch {
-      thrown = error
-    }
+    // CPU fails and retries at least twice.
+    try await eventually { session.sockets(for: "LiveCpu").count >= 3 || received.ended }
+    // Memory still delivers a new reading after those failures.
+    session.sockets(for: "LiveMemory").first?.push(memory61)
+    try await eventually { received.count(of: .memory) >= 2 || received.ended }
 
-    #expect(thrown != nil)
-    #expect(session.sockets.count == 3)
+    #expect(!received.ended, "one failing subscription ended the stream")
+    #expect(session.sockets(for: "LiveCpu").count >= 3)
+    #expect(session.sockets(for: "LiveMemory").count == 1)
+    #expect(session.sockets(for: "LiveTemperature").count == 1)
+    #expect(session.sockets(for: "LiveMemory").allSatisfy { !$0.cancelled })
+    #expect(session.sockets(for: "LiveTemperature").allSatisfy { !$0.cancelled })
+    #expect(received.count(of: .memory) >= 2)
+    #expect(received.count(of: .cpuTemperature) >= 1)
+    #expect(received.count(of: .cpu) == 0)
+
+    listening.cancel()
+    await listening.value
+    try await eventually { session.sockets.allSatisfy { $0.socket.cancelled } }
     #expect(session.sockets.allSatisfy { $0.socket.cancelled })
   }
 
-  // A clean `complete` from one subscription ends the stream the same way.
-  @Test func oneCompletedSubscriptionEndsTheStreamWithoutAnError() async throws {
+  @Test func aFailedSubscriptionRestartsAfterOneIntervalWhileTheOthersRun() async throws {
+    let clock = RetryClock()
+    let session = ScriptedSession(attempts: [
+      "LiveCpu": [[graphQLError("Temporarily unavailable")], [cpu47]],
+      "LiveMemory": [[memory58]],
+    ])
+    let repository = LiveMetricsRepository(
+      server: server, session: session, retryAfter: .seconds(30),
+      sleep: { _ in try await clock.wait() }
+    )
+    let received = Received()
+    let listening = Task { await received.drain(repository.liveMetrics()) }
+
+    try await eventually { clock.waits == 1 && received.count(of: .memory) == 1 }
+    // Waiting out the interval: no second CPU subscribe yet.
+    #expect(clock.waits == 1)
+    #expect(session.sockets(for: "LiveCpu").count == 1)
+    #expect(received.count(of: .memory) == 1)
+
+    clock.release()
+    try await eventually { received.count(of: .cpu) == 1 }
+    #expect(received.updates.contains(.cpu(percent: 47.5)))
+    #expect(session.sockets(for: "LiveCpu").count == 2)
+    #expect(session.sockets(for: "LiveMemory").count == 1)
+    #expect(session.sockets(for: "LiveMemory").allSatisfy { !$0.cancelled })
+    #expect(!received.ended)
+
+    listening.cancel()
+    await listening.value
+    try await eventually { session.sockets.allSatisfy { $0.socket.cancelled } }
+    #expect(session.sockets.allSatisfy { $0.socket.cancelled })
+  }
+
+  // Leaving the tab during a subscription's retry wait must not wait it out.
+  @Test func cancellingDuringARetryWaitClosesEverySocketAtOnce() async throws {
     let session = ScriptedSession(script: [
-      "LiveCpu": [cpu47, complete()],
+      "LiveCpu": [graphQLError("Temporarily unavailable")],
       "LiveMemory": [memory58],
     ])
-    let repository = LiveMetricsRepository(server: server, session: session)
+    // The real `Task.sleep`, for an hour: only cancellation can end it.
+    let repository = LiveMetricsRepository(
+      server: server, session: session, retryAfter: .seconds(3_600),
+      sleep: { try await Task.sleep(for: $0) }
+    )
+    let received = Received()
+    let listening = Task { await received.drain(repository.liveMetrics()) }
+    try await eventually {
+      received.count(of: .memory) == 1
+        && session.sockets(for: "LiveCpu").first?.cancelled == true
+    }
 
-    for try await _ in repository.liveMetrics() {}
+    listening.cancel()
+    await listening.value
 
+    try await eventually { session.sockets.allSatisfy { $0.socket.cancelled } }
     #expect(session.sockets.allSatisfy { $0.socket.cancelled })
+    #expect(session.sockets(for: "LiveCpu").count == 1)
   }
 
   // MARK: - Endpoint
