@@ -244,6 +244,325 @@ struct DockerStoreTests {
   }
 }
 
+/// Issue #23: updating a container recreates it under a new ID.
+@MainActor
+struct DockerStoreUpdateTests {
+  private let old = Container.stub(id: "old", names: ["/webtop"], isUpdateAvailable: true)
+  private let recreated = Container.stub(id: "new", names: ["/webtop"], isUpdateAvailable: false)
+
+  @Test func updateSwapsInTheRecreatedContainerAndRefreshes() async {
+    let repository = StubDockerRepository(
+      results: [.success([old]), .success([recreated])],
+      updateResults: [.success(recreated)]
+    )
+    let store = DockerStore(repository: repository)
+    await store.load()
+
+    await store.update(old)
+
+    #expect(store.state.value == [recreated])
+    #expect(repository.remainingResults == 0, "the list must refresh after the update")
+    #expect(store.replacedIDs == ["old": "new"])
+    #expect(store.updateReport?.summary == "Updated webtop.")
+    #expect(store.lastActionSuccess == 1)
+    #expect(!store.isBusy(recreated))
+  }
+
+  @Test func aScreenHoldingTheOldIDStillFindsTheContainer() async {
+    let repository = StubDockerRepository(
+      results: [.success([old]), .success([recreated])],
+      updateResults: [.success(recreated)]
+    )
+    let store = DockerStore(repository: repository)
+    await store.load()
+
+    await store.update(old)
+
+    #expect(store.container(id: "old") == recreated)
+    #expect(store.container(id: "new") == recreated)
+    #expect(store.container(id: "elsewhere") == nil)
+  }
+
+  @Test func aFailedUpdateKeepsTheListAndReportsTheServerMessage() async {
+    let repository = StubDockerRepository(
+      results: [.success([old]), .success([old])],
+      updateResults: [.failure(.graphQL(["Error pulling image: manifest unknown"]))]
+    )
+    let store = DockerStore(repository: repository)
+    await store.load()
+
+    await store.update(old)
+
+    #expect(store.state.value == [old])
+    #expect(store.updateReport?.summary == "Couldn't update webtop. Error pulling image: manifest unknown")
+    #expect(store.updateReport?.hasFailure == true)
+    #expect(store.lastActionFailure == 1)
+    #expect(store.replacedIDs.isEmpty)
+  }
+
+  @Test func aTimedOutUpdateReadsAsStillRunningNotAsAFailure() async {
+    let repository = StubDockerRepository(
+      results: [.success([old]), .success([old])],
+      updateResults: [.failure(.stillRunning("The update is still running on the server."))]
+    )
+    let store = DockerStore(repository: repository)
+    await store.load()
+
+    await store.update(old)
+
+    #expect(store.updateReport?.summary == "webtop is still updating on the server. Refresh in a few minutes.")
+    #expect(store.updateReport?.hasFailure == false)
+    #expect(store.lastActionFailure == 0)
+    #expect(store.lastActionSuccess == 0, "an update still running on the server has not succeeded yet")
+  }
+
+  /// After a client timeout the server is still pulling, and the refresh that
+  /// follows still shows the old container with its update. A second
+  /// `updateContainer` would collide with that pull, so for ten minutes the
+  /// container is left out of Update and Update All. After that the user can
+  /// try again.
+  @Test func aTimedOutUpdateIsNotSentAgainWhileTheServerStillPulls() async {
+    var clock = Date(timeIntervalSince1970: 1_000_000)
+    // Enough stubbed answers for a store without the guard to send all three
+    // updates, so that store fails on the assertions below, not on the stub.
+    let stillRunning = StubDockerRepository.UpdateResult.failure(
+      .stillRunning("The update is still running on the server."))
+    let repository = StubDockerRepository(
+      results: Array(repeating: .success([old]), count: 5),
+      updateResults: [stillRunning, stillRunning, stillRunning]
+    )
+    let store = DockerStore(repository: repository, now: { clock })
+    await store.load()
+
+    await store.update(old)
+    #expect(store.state.value == [old], "the closing refresh still shows the old container")
+    #expect(store.isStillUpdatingOnServer(old))
+    #expect(store.containersWithUpdates.isEmpty, "Update All must leave it out")
+
+    await store.update(old)
+    await store.updateAll()
+    #expect(repository.updateCallCount == 1, "a second update reached the server while the first still pulls")
+
+    clock += 10 * 60 + 1
+    await store.refresh()
+    #expect(!store.isStillUpdatingOnServer(old), "the state must end after ten minutes")
+    #expect(store.containersWithUpdates == [old])
+  }
+
+  /// A pull takes minutes, so the 30 s poll can show the recreated container,
+  /// under its new ID, before the mutation answers. The detail screen still
+  /// holds the old ID and must not read "Container Not Found".
+  @Test func aPollThatShowsTheRecreatedContainerFirstDoesNotLoseIt() async {
+    let repository = GatedUpdateRepository()
+    repository.recreated = ["old": recreated]
+    let store = DockerStore(repository: repository)
+    store.state = .loaded([old])
+
+    let updateTask = Task { await store.update(old) }
+    await repository.updateGate.waitUntilEntered(atLeast: 1)
+
+    repository.containersResult = [recreated]
+    await store.refresh()
+    #expect(store.state.value == [recreated])
+    #expect(store.container(id: "old") == recreated, "the poll beat the mutation; the old ID must still resolve")
+    #expect(store.isBusy(recreated), "the recreated row is still mid-update")
+
+    await repository.updateGate.releaseAll()
+    await updateTask.value
+    #expect(store.state.value == [recreated], "one webtop, not two")
+    #expect(store.container(id: "old") == recreated)
+  }
+
+  @Test func aSecondUpdateOfABusyContainerIsIgnored() async {
+    let repository = GatedUpdateRepository()
+    repository.recreated = ["old": recreated]
+    repository.containersResult = [recreated]
+    let store = DockerStore(repository: repository)
+    store.state = .loaded([old])
+
+    let first = Task { await store.update(old) }
+    await repository.updateGate.waitUntilEntered(atLeast: 1)
+    await store.update(old)
+    await store.perform(.restart, on: old)
+    await repository.updateGate.releaseAll()
+    await first.value
+
+    #expect(repository.updateCalls == ["old"])
+  }
+
+  /// One request per container, in list order, with "N of M" progress, and a
+  /// failure does not stop the rest — the opposite of `updateAllContainers`.
+  @Test func updateAllShowsProgressAndCarriesOnPastAFailure() async {
+    let code = Container.stub(id: "c", names: ["/code-server"], isUpdateAvailable: true)
+    let emby = Container.stub(id: "e", names: ["/emby"], isUpdateAvailable: true)
+    let plex = Container.stub(id: "p", names: ["/plex"], isUpdateAvailable: nil)
+    let webtop = Container.stub(id: "w", names: ["/webtop"], isUpdateAvailable: true)
+    let repository = GatedUpdateRepository()
+    repository.recreated = [
+      "c": Container.stub(id: "c2", names: ["/code-server"], isUpdateAvailable: false),
+      "w": Container.stub(id: "w2", names: ["/webtop"], isUpdateAvailable: false),
+    ]
+    repository.failures = ["e": .graphQL(["Error pulling image: manifest unknown"])]
+    let store = DockerStore(repository: repository)
+    store.state = .loaded([code, emby, plex, webtop])
+    repository.containersResult = [repository.recreated["c"]!, emby, plex, repository.recreated["w"]!]
+
+    let run = Task { await store.updateAll() }
+    await repository.updateGate.waitUntilEntered(atLeast: 1)
+    #expect(store.updateProgress == ContainerUpdateProgress(position: 1, total: 3, containerName: "code-server"))
+    #expect(store.isUpdatingAll)
+    await repository.updateGate.release(0)
+    await repository.updateGate.waitUntilEntered(atLeast: 2)
+    #expect(store.updateProgress == ContainerUpdateProgress(position: 2, total: 3, containerName: "emby"))
+    await repository.updateGate.release(1)
+    await repository.updateGate.waitUntilEntered(atLeast: 3)
+    #expect(store.updateProgress == ContainerUpdateProgress(position: 3, total: 3, containerName: "webtop"))
+    await repository.updateGate.release(2)
+    await run.value
+
+    #expect(repository.updateCalls == ["c", "e", "w"], "plex has no update and is not touched")
+    #expect(store.updateProgress == nil)
+    #expect(!store.isUpdatingAll)
+    #expect(
+      store.updateReport?.summary
+        == "Updated 2 of 3 containers.\nCouldn't update emby. Error pulling image: manifest unknown"
+    )
+    #expect(store.state.value?.map(\.id) == ["c2", "e", "p", "w2"])
+    #expect(store.lastActionFailure == 1)
+  }
+
+  /// Two single updates at once: the one that finishes second must not erase
+  /// the first one's result.
+  @Test func overlappingSingleUpdatesKeepBothResults() async {
+    let emby = Container.stub(id: "e", names: ["/emby"], isUpdateAvailable: true)
+    let webtop = Container.stub(id: "w", names: ["/webtop"], isUpdateAvailable: true)
+    let repository = GatedUpdateRepository()
+    repository.recreated = ["w": Container.stub(id: "w2", names: ["/webtop"], isUpdateAvailable: false)]
+    repository.failures = ["e": .graphQL(["Error pulling image: manifest unknown"])]
+    repository.containersResult = [emby, repository.recreated["w"]!]
+    let store = DockerStore(repository: repository)
+    store.state = .loaded([emby, webtop])
+
+    let first = Task { await store.update(emby) }
+    await repository.updateGate.waitUntilEntered(atLeast: 1)
+    let second = Task { await store.update(webtop) }
+    await repository.updateGate.waitUntilEntered(atLeast: 2)
+
+    await repository.updateGate.release(0)
+    await first.value
+    await repository.updateGate.release(1)
+    await second.value
+
+    #expect(
+      store.updateReport?.summary
+        == "Updated 1 of 2 containers.\nCouldn't update emby. Error pulling image: manifest unknown",
+      "the second update's result replaced the first one's")
+  }
+
+  /// "Update All" queues its targets, and the user can stop one before its
+  /// turn. The run must leave that container alone, and must not clear the
+  /// stop's in-flight marker.
+  @Test func updateAllSkipsAContainerWithAnotherActionInFlight() async {
+    let code = Container.stub(id: "c", names: ["/code-server"], isUpdateAvailable: true)
+    let webtop = Container.stub(id: "w", names: ["/webtop"], isUpdateAvailable: true)
+    let repository = GatedUpdateRepository()
+    // `w` has a recreated container too, so a store without the guard fails
+    // on the assertions below rather than on this stub.
+    repository.recreated = [
+      "c": Container.stub(id: "c2", names: ["/code-server"], isUpdateAvailable: false),
+      "w": Container.stub(id: "w2", names: ["/webtop"], isUpdateAvailable: false),
+    ]
+    repository.containersResult = [repository.recreated["c"]!, webtop]
+    let store = DockerStore(repository: repository)
+    store.state = .loaded([code, webtop])
+
+    let run = Task { await store.updateAll() }
+    await repository.updateGate.waitUntilEntered(atLeast: 1)
+    let stop = Task { await store.perform(.stop, on: webtop) }
+    await repository.actionGate.waitUntilEntered(atLeast: 1)
+
+    await repository.updateGate.releaseAll()
+    await run.value
+
+    #expect(repository.updateCalls == ["c"], "Update All sent an update for a container being stopped")
+    #expect(store.inFlight.contains("w"), "Update All cleared the stop's in-flight marker")
+    #expect(store.updateReport?.summary.contains("Skipped webtop") == true)
+
+    await repository.actionGate.releaseAll()
+    await stop.value
+    #expect(!store.inFlight.contains("w"))
+  }
+
+  @Test func reportSummaryWhenEveryUpdateSucceeds() {
+    let report = ContainerUpdateReport(entries: [
+      .init(containerName: "plex", outcome: .updated),
+      .init(containerName: "webtop", outcome: .updated),
+    ])
+    #expect(report.summary == "Updated 2 containers.")
+  }
+
+  @Test func reportSummaryNamesAnUpdateStillRunning() {
+    let report = ContainerUpdateReport(entries: [
+      .init(containerName: "plex", outcome: .stillRunning),
+      .init(containerName: "webtop", outcome: .updated),
+    ])
+    #expect(report.summary == "Updated 1 of 2 containers.\nplex is still updating on the server. Refresh in a few minutes.")
+  }
+
+  @Test func dismissClearsTheReport() async {
+    let repository = StubDockerRepository(
+      results: [.success([old]), .success([recreated])],
+      updateResults: [.success(recreated)]
+    )
+    let store = DockerStore(repository: repository)
+    await store.load()
+    await store.update(old)
+
+    store.dismissUpdateReport()
+
+    #expect(store.updateReport == nil)
+  }
+}
+
+/// `update(id:)` parks on `updateGate`; `containers()` answers
+/// `containersResult` at once. `recreated` is what each update returns, by
+/// the ID it was asked for, and `failures` is what it throws instead.
+private final class GatedUpdateRepository: DockerRepositoryProtocol, @unchecked Sendable {
+  let updateGate = Gate()
+  var containersResult: [Container] = []
+  var recreated: [Container.ID: Container] = [:]
+  var failures: [Container.ID: AppError] = [:]
+  private let lock = NSLock()
+  private var _updateCalls: [Container.ID] = []
+  var updateCalls: [Container.ID] { lock.withLock { _updateCalls } }
+
+  func containers() async throws -> [Container] { containersResult }
+
+  func update(id: String) async throws -> Container {
+    lock.withLock { _updateCalls.append(id) }
+    await updateGate.enter()
+    if let failure = failures[id] { throw failure }
+    guard let container = recreated[id] else { preconditionFailure("no recreated container for \(id)") }
+    return container
+  }
+
+  /// `stop(id:)` parks here, so a test can hold a stop in flight while an
+  /// update run reaches the same container.
+  let actionGate = Gate()
+
+  func start(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
+  func stop(id: String) async throws -> ContainerStateUpdate {
+    await actionGate.enter()
+    return ContainerStateUpdate(id: id, state: .exited, status: "Exited (0) 0 seconds ago")
+  }
+  func restart(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
+  func pause(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
+  func unpause(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
+  func logs(id: String, tail: Int?, since: String?) async throws -> ContainerLogs {
+    preconditionFailure("not used")
+  }
+}
+
 /// `results`/`actionResults` are each a queue rather than a single fixed
 /// outcome — same reasoning as `DashboardStoreTests.StubDashboardRepository`.
 /// The five mutation methods share one `actionResults` queue: these tests
@@ -254,12 +573,18 @@ private final class StubDockerRepository: DockerRepositoryProtocol, @unchecked S
   enum Result { case success([Container]), failure(AppError) }
   enum ActionResult { case success(ContainerStateUpdate), failure(AppError) }
 
+  enum UpdateResult { case success(Container), failure(AppError) }
+
   private var results: [Result]
   private var actionResults: [ActionResult]
+  private var updateResults: [UpdateResult]
+  /// `containers()` results not yet used — 0 once every stubbed one was asked for.
+  var remainingResults: Int { results.count }
 
-  init(results: [Result] = [], actionResults: [ActionResult] = []) {
+  init(results: [Result] = [], actionResults: [ActionResult] = [], updateResults: [UpdateResult] = []) {
     self.results = results
     self.actionResults = actionResults
+    self.updateResults = updateResults
   }
 
   func containers() async throws -> [Container] {
@@ -275,6 +600,17 @@ private final class StubDockerRepository: DockerRepositoryProtocol, @unchecked S
   func restart(id: String) async throws -> ContainerStateUpdate { try nextActionResult() }
   func pause(id: String) async throws -> ContainerStateUpdate { try nextActionResult() }
   func unpause(id: String) async throws -> ContainerStateUpdate { try nextActionResult() }
+
+  private(set) var updateCallCount = 0
+
+  func update(id: String) async throws -> Container {
+    updateCallCount += 1
+    precondition(!updateResults.isEmpty, "update(id:) called more times than results were stubbed")
+    switch updateResults.removeFirst() {
+    case .success(let container): return container
+    case .failure(let error): throw error
+    }
+  }
 
   /// Nothing in `DockerStoreTests` exercises logs — that's
   /// `ContainerLogsStoreTests`' job — so this exists only to keep this stub
@@ -325,6 +661,9 @@ private final class GatedDockerRepository: DockerRepositoryProtocol, @unchecked 
   func restart(id: String) async throws -> ContainerStateUpdate { try await act(id: id) }
   func pause(id: String) async throws -> ContainerStateUpdate { try await act(id: id) }
   func unpause(id: String) async throws -> ContainerStateUpdate { try await act(id: id) }
+  func update(id: String) async throws -> Container {
+    preconditionFailure("update(id:) goes through GatedUpdateRepository")
+  }
 
   /// Nothing in `DockerStoreTests` exercises logs through `GatedDockerRepository`
   /// — see `StubDockerRepository`'s identical stub above.
@@ -347,11 +686,12 @@ extension Container {
   /// in `TowerKit`'s own test target and isn't visible from `TowerTests`.
   fileprivate static func stub(
     id: String, names: [String] = ["/container"], image: String = "image:latest",
-    state: ContainerState = .running, status: String = "Up 2 hours"
+    state: ContainerState = .running, status: String = "Up 2 hours",
+    isUpdateAvailable: Bool? = nil
   ) -> Container {
     Container(
       id: id, names: names, image: image, state: state, status: status,
-      autoStart: false, isUpdateAvailable: nil, isOrphaned: false,
+      autoStart: false, isUpdateAvailable: isUpdateAvailable, isOrphaned: false,
       webUiURL: nil, iconURL: nil, projectURL: nil, supportURL: nil, registryURL: nil,
       templatePath: nil, networkMode: nil, ports: []
     )

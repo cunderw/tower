@@ -322,6 +322,207 @@ final class ScreenshotTourUITests: XCTestCase {
     try captureArrScreens(in: app)
   }
 
+  // MARK: - Container updates (issue #23)
+
+  /// Demo mode's Docker tab, ready on the list. Demo updates take three
+  /// seconds, so the running state stays on screen long enough to capture.
+  private func launchDemoOnDocker() -> XCUIApplication {
+    let app = XCUIApplication()
+    app.launchArguments = ["--uitest-reset-credentials"]
+    app.launch()
+    let demo = app.buttons["connect.demo"]
+    XCTAssertTrue(demo.waitForExistence(timeout: 15), "the connect screen offered no demo")
+    demo.tap()
+    XCTAssertTrue(
+      app.descendants(matching: .any).matching(identifier: "services.docker")
+        .firstMatch.waitForExistence(timeout: 15),
+      "the demo never reached a loaded dashboard")
+    app.buttons["Docker"].firstMatch.tap()
+    XCTAssertTrue(app.staticTexts["webtop"].waitForExistence(timeout: 15))
+    return app
+  }
+
+  /// Back to the Docker list on iPhone. On iPad the list is already beside
+  /// the detail.
+  private func backToListOnIPhone(in app: XCUIApplication) {
+    guard UIDevice.current.userInterfaceIdiom != .pad else { return }
+    app.navigationBars.buttons.matching(
+      NSPredicate(format: "identifier == 'BackButton' OR label == 'Docker'")
+    ).firstMatch.tap()
+  }
+
+  /// One container's update from its detail screen: the Update button, its
+  /// confirmation, the running state and the result.
+  func testCaptureContainerUpdate() throws {
+    let app = launchDemoOnDocker()
+    selectOnIPad(app.staticTexts["code-server"])
+    try capture(named: "docker-update-list")
+
+    app.staticTexts["webtop"].tap()
+    let update = app.buttons["containerDetail.updateButton"]
+    XCTAssertTrue(update.waitForExistence(timeout: 10), "webtop's detail offered no Update")
+    try capture(named: "docker-update-detail")
+
+    update.tap()
+    XCTAssertTrue(app.staticTexts["Update webtop?"].waitForExistence(timeout: 5), "Update asked for no confirmation")
+    try capture(named: "docker-update-confirm")
+
+    dialogButton("Update", in: app).tap()
+    let running = app.buttons.matching(
+      NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "containerDetail.updateButton", "Updating")
+    ).firstMatch
+    XCTAssertTrue(running.waitForExistence(timeout: 3), "the detail screen never showed the update running")
+    try capture(named: "docker-update-running")
+
+    XCTAssertTrue(
+      app.staticTexts["containerDetail.updateResult"].waitForExistence(timeout: 10),
+      "the detail screen never showed the result")
+    try capture(named: "docker-update-done")
+
+    backToListOnIPhone(in: app)
+    XCTAssertTrue(
+      app.staticTexts["docker.updateReport"].waitForExistence(timeout: 5), "the list showed no result")
+    try capture(named: "docker-update-list-done")
+  }
+
+  /// "Update All" across demo mode's two containers with updates.
+  func testCaptureUpdateAll() throws {
+    let app = launchDemoOnDocker()
+    selectOnIPad(app.staticTexts["code-server"])
+
+    let updateAll = app.buttons["docker.updateAll"]
+    XCTAssertTrue(updateAll.waitForExistence(timeout: 5), "no Update All in demo mode")
+    updateAll.tap()
+    let confirm = dialogButton("Update All", in: app)
+    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update All asked for no confirmation")
+    try capture(named: "docker-update-all-confirm")
+
+    confirm.tap()
+    XCTAssertTrue(
+      app.descendants(matching: .any)["docker.updateProgress"].waitForExistence(timeout: 3),
+      "Update All showed no progress")
+    try capture(named: "docker-update-all-running")
+
+    XCTAssertTrue(
+      app.staticTexts["docker.updateReport"].waitForExistence(timeout: 15), "Update All showed no result")
+    try capture(named: "docker-update-all-done")
+  }
+
+  /// The seeded Docker tab, with `UITEST_DOCKER_STATE` set to `state`.
+  private func launchSeededOnDocker(state: String?) -> XCUIApplication {
+    let app = XCUIApplication()
+    app.launchArguments = ["--uitest-seed-dashboard"]
+    if let state { app.launchEnvironment["UITEST_DOCKER_STATE"] = state }
+    app.launch()
+    app.buttons["Docker"].firstMatch.tap()
+    return app
+  }
+
+  /// A failed update: the server's message on the detail screen and the list.
+  /// Seeded, because demo mode's updates always succeed.
+  func testCaptureContainerUpdateFailure() throws {
+    try captureSeededSingleUpdate(state: "update-fails", named: "docker-update-failed")
+  }
+
+  /// An update the client stopped waiting for: "still updating on the server".
+  func testCaptureContainerUpdateStillRunning() throws {
+    try captureSeededSingleUpdate(state: "update-times-out", named: "docker-update-still-running")
+  }
+
+  /// "Update All" that skips a container with another action in flight: the
+  /// orange skipped icon, not the green success one.
+  func testCaptureUpdateAllSkipped() throws {
+    // `many-updates` gives three containers an update, takes three seconds
+    // per update, and holds a Start in flight for 15 seconds. The run reaches
+    // emby (`uitest-container-5`) third, so a Start swiped on it just after
+    // the run begins is still in flight when its turn comes, and the run
+    // skips it. emby's Start fails, but only after the capture.
+    let app = launchSeededOnDocker(state: "many-updates")
+    let emby = app.descendants(matching: .any).matching(identifier: "docker.row.uitest-container-5").firstMatch
+    XCTAssertTrue(emby.waitForExistence(timeout: 10), "emby never appeared")
+
+    let updateAll = app.buttons["docker.updateAll"]
+    XCTAssertTrue(updateAll.waitForExistence(timeout: 5), "no Update All with three updates")
+    updateAll.tap()
+    let confirm = dialogButton("Update All", in: app)
+    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update All asked for no confirmation")
+    confirm.tap()
+
+    // A leading swipe commits Start in the iPad's narrow column and parks the
+    // row open on iPhone (see `DockerUITests.startBySwipe`).
+    emby.swipeRight()
+    let startButton = app.buttons["Start"]
+    if startButton.waitForExistence(timeout: 2) { startButton.tap() }
+
+    let report = app.staticTexts.matching(
+      NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "docker.updateReport", "Skipped emby")
+    ).firstMatch
+    XCTAssertTrue(report.waitForExistence(timeout: 15), "Update All reported no skipped container")
+    try capture(named: "docker-update-all-skipped")
+  }
+
+  /// "Update All" where one of three fails: the multi-line result, which is
+  /// tallest in the iPad's narrow list column.
+  func testCaptureUpdateAllPartialFailure() throws {
+    let app = launchSeededOnDocker(state: "many-updates")
+    let updateAll = app.buttons["docker.updateAll"]
+    XCTAssertTrue(updateAll.waitForExistence(timeout: 10), "no Update All with three updates")
+    updateAll.tap()
+    let confirm = dialogButton("Update All", in: app)
+    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update All asked for no confirmation")
+    confirm.tap()
+    XCTAssertTrue(
+      app.staticTexts["docker.updateReport"].waitForExistence(timeout: 20), "Update All showed no result")
+    try capture(named: "docker-update-all-partial")
+  }
+
+  /// The row's trailing swipe, parked open on Update, then its confirmation.
+  /// iPhone only: in the iPad split column a swipe commits Restart.
+  func testCaptureRowSwipeUpdate() throws {
+    try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "a swipe in the split column commits Restart")
+    let app = launchSeededOnDocker(state: nil)
+    let webtop = app.descendants(matching: .any).matching(identifier: "docker.row.uitest-container-3").firstMatch
+    XCTAssertTrue(webtop.waitForExistence(timeout: 10), "webtop never appeared")
+    let update = app.buttons.matching(
+      NSPredicate(format: "identifier == 'docker.swipe.update' OR label == 'Update'")
+    ).firstMatch
+    for _ in 0..<2 where !update.exists {
+      webtop.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        .press(forDuration: 0.05, thenDragTo: webtop.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: 0.5)))
+      _ = update.waitForExistence(timeout: 2)
+    }
+    XCTAssertTrue(update.exists, "the row's swipe offered no Update")
+    try capture(named: "docker-update-swipe")
+
+    update.tap()
+    XCTAssertTrue(app.staticTexts["Update webtop?"].waitForExistence(timeout: 5), "no confirmation")
+    try capture(named: "docker-update-swipe-confirm")
+  }
+
+  /// Updates `webtop` from its detail screen in the seeded `state`, and
+  /// captures the detail and the list afterwards.
+  private func captureSeededSingleUpdate(state: String, named name: String) throws {
+    let app = launchSeededOnDocker(state: state)
+    let webtop = app.descendants(matching: .any).matching(identifier: "docker.row.uitest-container-3").firstMatch
+    XCTAssertTrue(webtop.waitForExistence(timeout: 10), "webtop never appeared")
+    webtop.tap()
+    let update = app.buttons["containerDetail.updateButton"]
+    XCTAssertTrue(update.waitForExistence(timeout: 10), "webtop's detail offered no Update")
+    update.tap()
+    XCTAssertTrue(app.staticTexts["Update webtop?"].waitForExistence(timeout: 5), "Update asked for no confirmation")
+    dialogButton("Update", in: app).tap()
+
+    XCTAssertTrue(
+      app.staticTexts["containerDetail.updateResult"].waitForExistence(timeout: 10),
+      "the detail screen never showed the result")
+    try capture(named: name)
+
+    backToListOnIPhone(in: app)
+    XCTAssertTrue(
+      app.staticTexts["docker.updateReport"].waitForExistence(timeout: 5), "the list showed no result")
+    try capture(named: "\(name)-list")
+  }
+
   /// The *arr screens, captured as part of the demo tour.
   ///
   /// A movie or series detail is deliberately left out. It is mostly a poster

@@ -140,9 +140,10 @@ enum DemoData {
     container(name: "freshrss", state: .exited, status: "Exited (0) 3 hours ago"),
     container(name: "heimdall", state: .running, status: "Up 11 days", port: 8_090),
     container(name: "nextcloud", state: .paused, status: "Paused", port: 8_444),
-    container(name: "plex", state: .running, status: "Up 11 days", port: 32_400),
+    container(name: "plex", state: .running, status: "Up 11 days", port: 32_400, hasUpdate: true),
     container(name: "sonarr", state: .running, status: "Up 6 days", port: 8_989),
-    // The update-available container.
+    // The update-available containers are `plex` and this one: two, so
+    // "Update All" shows its progress across more than one.
     container(name: "webtop", state: .running, status: "Up 6 days", port: 3_000, hasUpdate: true),
   ]
 

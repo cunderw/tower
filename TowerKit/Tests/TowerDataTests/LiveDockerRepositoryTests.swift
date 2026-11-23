@@ -77,6 +77,84 @@ private func containersError(host: String, json: String) async -> AppError? {
   #expect(error == .graphQL(["Failed to read name"]))
 }
 
+// Issue #23: `update(id:)`. The server's answer is the recreated container,
+// whose ID differs from the one the request named.
+
+/// A `LiveDockerRepository` that answers `json` to `UpdateContainer` only, or
+/// never answers it when `json` is `nil`.
+private func makeUpdateRepository(
+  host: String, json: String?, updateTimeout: TimeInterval = LiveDockerRepository.defaultUpdateTimeout
+) -> LiveDockerRepository {
+  let endpoint = URL(string: "http://\(host)/graphql")!
+  if let json {
+    StubURLProtocol.stub(url: endpoint, operationName: "UpdateContainer", json: json)
+  } else {
+    StubURLProtocol.stubNoAnswer(url: endpoint, operationName: "UpdateContainer")
+  }
+  let server = Server(name: "Stub", url: URL(string: "http://\(host)")!, apiKey: "test-key")
+  return LiveDockerRepository(
+    provider: ApolloClientProvider(server: server, sessionConfiguration: StubURLProtocol.configuration()),
+    updateTimeout: updateTimeout
+  )
+}
+
+@Test func updateReturnsTheRecreatedContainerWithItsNewID() async throws {
+  let repository = makeUpdateRepository(
+    host: "stub-docker-update-success.test",
+    json: #"""
+    {"data": {"docker": {"__typename": "DockerMutations", "updateContainer": {
+      "__typename": "DockerContainer", "id": "server:new-id", "names": ["/webtop"],
+      "image": "linuxserver/webtop:latest", "state": "RUNNING", "status": "Up 1 second",
+      "autoStart": true, "isUpdateAvailable": false, "isOrphaned": false,
+      "webUiUrl": null, "iconUrl": null, "projectUrl": null, "supportUrl": null,
+      "registryUrl": null, "templatePath": null,
+      "hostConfig": {"__typename": "ContainerHostConfig", "networkMode": "bridge"},
+      "ports": [{"__typename": "ContainerPort", "ip": "0.0.0.0", "privatePort": "3000", "publicPort": "3000", "type": "TCP"}]
+    }}}}
+    """#
+  )
+
+  let container = try await repository.update(id: "server:old-id")
+
+  #expect(container.id == "server:new-id")
+  #expect(container.displayName == "webtop")
+  #expect(container.state == .running)
+  #expect(container.isUpdateAvailable == false)
+  #expect(container.networkMode == "bridge")
+  #expect(container.ports == [ContainerPort(ip: "0.0.0.0", privatePort: 3000, publicPort: 3000, type: "TCP")])
+}
+
+@Test func updateReportsTheServerErrorMessage() async {
+  let repository = makeUpdateRepository(
+    host: "stub-docker-update-error.test",
+    json: #"""
+    {"data": null, "errors": [{"message": "Failed to pull image linuxserver/webtop:latest: manifest unknown", "path": ["docker", "updateContainer"]}]}
+    """#
+  )
+  do {
+    _ = try await repository.update(id: "server:old-id")
+    Issue.record("expected update(id:) to throw")
+  } catch {
+    #expect(
+      error as? AppError == .graphQL(["Failed to pull image linuxserver/webtop:latest: manifest unknown"]),
+      "threw \(error)")
+  }
+}
+
+@Test func updateReportsATimeoutAsStillRunningNotUnreachable() async {
+  // The server never answers. The request timeout ends the wait, and the
+  // update must read as still running on the server, not as a server Tower
+  // cannot reach.
+  let repository = makeUpdateRepository(
+    host: "stub-docker-update-timeout.test", json: nil, updateTimeout: 0.3)
+  do {
+    _ = try await repository.update(id: "server:old-id")
+    Issue.record("expected update(id:) to throw")
+  } catch {
+    #expect(error as? AppError == .stillRunning("The update is still running on the server."), "threw \(error)")
+  }
+}
+
 // Issue #21: from Unraid API 4.37, `Query.docker` is nullable, so the null
 // from a failed `containers` stops at `docker` and the server sends
 // `data: {"docker": null}` instead of `data: null`.

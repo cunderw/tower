@@ -15,6 +15,7 @@ nonisolated public final class DockerMutations: MockObject {
     @Field<DockerContainer>("start") public var start
     @Field<DockerContainer>("stop") public var stop
     @Field<DockerContainer>("unpause") public var unpause
+    @Field<DockerContainer>("updateContainer") public var updateContainer
   }
 }
 
@@ -24,7 +25,8 @@ public extension Mock where O == DockerMutations {
     restart: Mock<DockerContainer> = Mock<DockerContainer>(),
     start: Mock<DockerContainer> = Mock<DockerContainer>(),
     stop: Mock<DockerContainer> = Mock<DockerContainer>(),
-    unpause: Mock<DockerContainer> = Mock<DockerContainer>()
+    unpause: Mock<DockerContainer> = Mock<DockerContainer>(),
+    updateContainer: Mock<DockerContainer> = Mock<DockerContainer>()
   ) {
     self.init()
     _setEntity(pause, for: \.pause)
@@ -32,5 +34,6 @@ public extension Mock where O == DockerMutations {
     _setEntity(start, for: \.start)
     _setEntity(stop, for: \.stop)
     _setEntity(unpause, for: \.unpause)
+    _setEntity(updateContainer, for: \.updateContainer)
   }
 }

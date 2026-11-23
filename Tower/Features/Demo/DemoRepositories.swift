@@ -25,9 +25,13 @@ private enum DemoLatency {
   /// A mutation, which on a real box takes longer than a read — a `docker stop`
   /// has a SIGTERM grace period.
   static let write = Duration.milliseconds(700)
+  /// A container update, which pulls an image first: long enough that the
+  /// progress shows, the way it does on a real box.
+  static let update = Duration.seconds(3)
 
   static func read() async { try? await Task.sleep(for: read) }
   static func write() async { try? await Task.sleep(for: write) }
+  static func update() async { try? await Task.sleep(for: update) }
 }
 
 struct DemoSystemRepository: SystemRepositoryProtocol {
@@ -102,6 +106,14 @@ struct DemoDockerRepository: DockerRepositoryProtocol {
   func unpause(id: String) async throws -> ContainerStateUpdate {
     await DemoLatency.write()
     return server.updateContainer(id: id, state: .running, status: "Up less than a minute")
+  }
+
+  func update(id: String) async throws -> Container {
+    await DemoLatency.update()
+    guard let container = server.recreateWithLatestImage(id: id) else {
+      throw AppError.graphQL(["No such container: \(id)"])
+    }
+    return container
   }
 
   func logs(id: String, tail: Int?, since: String?) async throws -> ContainerLogs {

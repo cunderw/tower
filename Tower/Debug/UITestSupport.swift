@@ -257,8 +257,70 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
   /// survives across that one instance's repeated calls (initial load, every
   /// poll tick, every pull-to-refresh).
   private let attempts = Attempts()
+  /// The IDs `update(id:)` has recreated, boxed for the same reason as
+  /// `attempts`. Unlike the five state actions, an update has to **change
+  /// what `containers()` answers**: `DockerStore` refreshes after it, and a
+  /// fake that answered the old ID and the badge again would undo the update
+  /// on screen.
+  private let updated = UpdatedContainerIDs()
 
+  /// The ID `update(id:)` gives the container it recreates. Docker gives a
+  /// recreated container a new ID, so the fake does too.
+  static func updatedID(for id: String) -> String { "\(id)-updated" }
+
+  /// `UITEST_DOCKER_STATE=update-fails`: every update fails with this server
+  /// message, so a test can assert the message reaches the screen.
+  /// `update-times-out` throws what `LiveDockerRepository.update(id:)` throws
+  /// when the client stops waiting.
+  static let updateFailureMessage = "Error pulling image: manifest unknown"
+
+  private static var dockerState: String? {
+    ProcessInfo.processInfo.environment["UITEST_DOCKER_STATE"]
+  }
+
+  /// Pulls nothing; recreates the container under `updatedID(for:)` with no
+  /// update to report. `update-fails` throws a server message for every
+  /// container. `many-updates` takes three seconds per update, so a test can see
+  /// "Update All" progress, and `uitest-container-5` fails there as it does
+  /// for every other action.
+  func update(id: String) async throws -> Container {
+    if Self.dockerState == "many-updates" {
+      try? await Task.sleep(for: .seconds(3))
+    }
+    try failIfActionFailureFixture(id)
+    if Self.dockerState == "update-fails" {
+      throw AppError.graphQL([Self.updateFailureMessage])
+    }
+    if Self.dockerState == "update-times-out" {
+      throw AppError.stillRunning("The update is still running on the server.")
+    }
+    guard let container = Self.fixtures().first(where: { $0.id == id }) else {
+      throw AppError.graphQL(["No such container: \(id)"])
+    }
+    updated.insert(id)
+    return Self.updatedVersion(of: container)
+  }
+
+  private static func updatedVersion(of container: Container) -> Container {
+    Container(
+      id: updatedID(for: container.id), names: container.names, image: container.image,
+      state: container.state,
+      status: container.isRunning ? "Up less than a second" : container.status,
+      autoStart: container.autoStart, isUpdateAvailable: false, isOrphaned: container.isOrphaned,
+      webUiURL: container.webUiURL, iconURL: container.iconURL, projectURL: container.projectURL,
+      supportURL: container.supportURL, registryURL: container.registryURL,
+      templatePath: container.templatePath, networkMode: container.networkMode,
+      ports: container.ports
+    )
+  }
+
+  /// `many-updates` holds a Start in flight for 15 seconds, so a capture can
+  /// start a container just after "Update All" begins and have the run reach
+  /// it while that Start is still going: the run skips the container.
   func start(id: String) async throws -> ContainerStateUpdate {
+    if Self.dockerState == "many-updates" {
+      try? await Task.sleep(for: .seconds(15))
+    }
     try failIfActionFailureFixture(id)
     return ContainerStateUpdate(id: id, state: .running, status: "Up less than a second")
   }
@@ -334,15 +396,49 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
   /// `AppError.serviceUnavailable`, what `LiveDockerRepository` throws with the
   /// Docker service off, so `DockerUITests` can assert the "Docker Unavailable"
   /// state. `FakeSystemRepository` is unaffected and still reports 14 of 16.
+  /// `UITEST_DOCKER_STATE=many-updates` also marks `-1` and `-5` as having an
+  /// update, so "Update All" has three containers to update and one that
+  /// fails. Opt-in, for the six-row, one-badge reason above. A container
+  /// `update(id:)` recreated answers under its new ID, with no update.
   func containers() async throws -> [Container] {
     if ProcessInfo.processInfo.environment["UITEST_DOCKER_STATE"] == "unavailable" {
       throw AppError.serviceUnavailable("Docker")
     }
-    let all = [
+    let all = Self.fixtures().map { updated.contains($0.id) ? Self.updatedVersion(of: $0) : $0 }
+    if ProcessInfo.processInfo.environment["UITEST_DOCKER_STATE"] == "service-containers" {
+      return all + [
+        Container(
+          id: "uitest-container-sonarr", names: ["/sonarr"],
+          image: "linuxserver/sonarr:latest", state: .running, status: "Up 3 days",
+          autoStart: true, isUpdateAvailable: nil, isOrphaned: false, webUiURL: nil, iconURL: nil,
+          projectURL: nil, supportURL: nil, registryURL: nil, templatePath: nil,
+          networkMode: "bridge",
+          ports: [ContainerPort(ip: "0.0.0.0", privatePort: 8989, publicPort: 18989, type: "TCP")]),
+        // Stopped, so it must *not* be offered.
+        Container(
+          id: "uitest-container-radarr", names: ["/radarr"],
+          image: "linuxserver/radarr:latest", state: .exited, status: "Exited (0) 1 hour ago",
+          autoStart: false, isUpdateAvailable: nil, isOrphaned: false, webUiURL: nil, iconURL: nil,
+          projectURL: nil, supportURL: nil, registryURL: nil, templatePath: nil,
+          networkMode: "bridge",
+          ports: [ContainerPort(ip: "0.0.0.0", privatePort: 7878, publicPort: 7878, type: "TCP")]),
+      ]
+    }
+    guard ProcessInfo.processInfo.environment["UITEST_DOCKER_STATE"] == "container-vanishes" else {
+      return all
+    }
+    return attempts.recordAndCheckFirst() ? all : all.filter { $0.id != Self.vanishingContainerID }
+  }
+
+  /// The six fixtures, before `update(id:)` recreates any. See `containers()`.
+  private static func fixtures() -> [Container] {
+    let manyUpdates = dockerState == "many-updates"
+    return [
       Container(
         id: "uitest-container-1", names: ["/code-server"],
         image: "linuxserver/code-server:latest", state: .running, status: "Up 2 hours",
-        autoStart: true, isUpdateAvailable: nil, isOrphaned: false, webUiURL: nil, iconURL: nil,
+        autoStart: true, isUpdateAvailable: manyUpdates ? true : nil, isOrphaned: false,
+        webUiURL: nil, iconURL: nil,
         projectURL: nil, supportURL: nil, registryURL: nil, templatePath: nil, networkMode: nil,
         ports: []
       ),
@@ -377,12 +473,13 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
       Container(
         id: "uitest-container-5", names: ["/emby"],
         image: "linuxserver/emby:latest", state: .exited,
-        status: "Exited (1) 2 hours ago", autoStart: false, isUpdateAvailable: nil,
+        status: "Exited (1) 2 hours ago", autoStart: false,
+        isUpdateAvailable: manyUpdates ? true : nil,
         isOrphaned: false, webUiURL: nil, iconURL: nil, projectURL: nil, supportURL: nil,
         registryURL: nil, templatePath: nil, networkMode: nil, ports: []
       ),
-      // Backs `UITEST_DOCKER_STATE=container-vanishes` — see this method's
-      // own doc comment above.
+      // Backs `UITEST_DOCKER_STATE=container-vanishes` — see `containers()`'s
+      // doc comment above.
       Container(
         id: "uitest-container-6", names: ["/log-rotator"],
         image: "linuxserver/log-rotator:latest", state: .running, status: "Up 1 hour",
@@ -391,29 +488,21 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
         networkMode: nil, ports: []
       ),
     ]
-    if ProcessInfo.processInfo.environment["UITEST_DOCKER_STATE"] == "service-containers" {
-      return all + [
-        Container(
-          id: "uitest-container-sonarr", names: ["/sonarr"],
-          image: "linuxserver/sonarr:latest", state: .running, status: "Up 3 days",
-          autoStart: true, isUpdateAvailable: nil, isOrphaned: false, webUiURL: nil, iconURL: nil,
-          projectURL: nil, supportURL: nil, registryURL: nil, templatePath: nil,
-          networkMode: "bridge",
-          ports: [ContainerPort(ip: "0.0.0.0", privatePort: 8989, publicPort: 18989, type: "TCP")]),
-        // Stopped, so it must *not* be offered.
-        Container(
-          id: "uitest-container-radarr", names: ["/radarr"],
-          image: "linuxserver/radarr:latest", state: .exited, status: "Exited (0) 1 hour ago",
-          autoStart: false, isUpdateAvailable: nil, isOrphaned: false, webUiURL: nil, iconURL: nil,
-          projectURL: nil, supportURL: nil, registryURL: nil, templatePath: nil,
-          networkMode: "bridge",
-          ports: [ContainerPort(ip: "0.0.0.0", privatePort: 7878, publicPort: 7878, type: "TCP")]),
-      ]
-    }
-    guard ProcessInfo.processInfo.environment["UITEST_DOCKER_STATE"] == "container-vanishes" else {
-      return all
-    }
-    return attempts.recordAndCheckFirst() ? all : all.filter { $0.id != Self.vanishingContainerID }
+  }
+}
+
+/// The container IDs `FakeDockerRepository.update(id:)` has recreated. Same
+/// `NSLock` box as `Attempts`.
+private final class UpdatedContainerIDs: @unchecked Sendable {
+  private let lock = NSLock()
+  private var ids: Set<String> = []
+
+  func insert(_ id: String) {
+    lock.withLock { _ = ids.insert(id) }
+  }
+
+  func contains(_ id: String) -> Bool {
+    lock.withLock { ids.contains(id) }
   }
 }
 
@@ -436,8 +525,8 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
 /// behaviour *across* calls): `unavailable` returns `nil` domains — the
 /// "VM manager isn't reporting" state that must not read as "no VMs" — `empty`
 /// returns `[]`, and anything else returns the five fixtures.
-/// Unlike `FakeDockerRepository`, this one **mutates in memory**: the VM
-/// actions return `Boolean!`, so `VMStore.perform(_:on:)` re-fetches
+/// Unlike `FakeDockerRepository`'s five state actions, this one **mutates in
+/// memory**: the VM actions return `Boolean!`, so `VMStore.perform(_:on:)` re-fetches
 /// `domains()` instead of merging a returned state (see its doc comment). A
 /// fake whose `domains()` answered the same thing forever would make every
 /// action look like a no-op, and a UI test asserting "the row reflects the

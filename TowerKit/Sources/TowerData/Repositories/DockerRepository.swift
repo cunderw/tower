@@ -23,6 +23,14 @@ public protocol DockerRepositoryProtocol: Sendable {
   func pause(id: String) async throws -> ContainerStateUpdate
   func unpause(id: String) async throws -> ContainerStateUpdate
 
+  /// Pulls the container's latest image and recreates the container. Returns
+  /// the recreated container, whose ID is **not** `id`: Docker gives a
+  /// recreated container a new ID, so a caller that keys anything by the old
+  /// one has to re-key it. Throws `AppError.stillRunning` when the client
+  /// stops waiting before the server answers. The server keeps going, so the
+  /// update can still finish.
+  func update(id: String) async throws -> Container
+
   /// `tail` and `since` mirror the `DockerLogs` operation's own optional
   /// arguments — `nil` for either omits it from the request (Apollo's
   /// `GraphQLNullable.none`, not an explicit `null`). `tail` is a maximum,
@@ -33,10 +41,21 @@ public protocol DockerRepositoryProtocol: Sendable {
 }
 
 public struct LiveDockerRepository: DockerRepositoryProtocol {
-  private let provider: ApolloClientProvider
+  /// How long `update(id:)` waits for an answer. `updateContainer` answers
+  /// only after the image pull and the recreate finish, and sends nothing
+  /// while it works, so the session's 60 s idle timeout would end a slow pull
+  /// that is still going well. Ten minutes covers a large image on a slow
+  /// line. Past it, `update(id:)` reports the update as still running.
+  public static let defaultUpdateTimeout: TimeInterval = 600
 
-  public init(provider: ApolloClientProvider) {
+  private let provider: ApolloClientProvider
+  private let updateTimeout: TimeInterval
+
+  /// - Parameter updateTimeout: How long `update(id:)` waits. A test passes a
+  ///   short one to reach the timeout path.
+  public init(provider: ApolloClientProvider, updateTimeout: TimeInterval = defaultUpdateTimeout) {
     self.provider = provider
+    self.updateTimeout = updateTimeout
   }
 
   public func containers() async throws -> [Container] {
@@ -68,7 +87,7 @@ public struct LiveDockerRepository: DockerRepositoryProtocol {
     // Sort by display name so list order is stable across refreshes — the
     // server does not guarantee `containers` order.
     return docker.containers
-      .map(Container.init(from:))
+      .map { Container(from: $0.fragments.dockerContainerFields) }
       .sorted { $0.displayName < $1.displayName }
   }
 
@@ -90,6 +109,33 @@ public struct LiveDockerRepository: DockerRepositoryProtocol {
 
   public func unpause(id: String) async throws -> ContainerStateUpdate {
     try await performAction(UnpauseContainerMutation(id: id)) { $0.docker.unpause }
+  }
+
+  /// One `updateContainer` request with its own timeout (see
+  /// `defaultUpdateTimeout`). A request timeout overrides the session's idle
+  /// timeout in both directions, so the other requests keep 60 s.
+  ///
+  /// `URLError.timedOut` becomes `AppError.stillRunning` here, not
+  /// `.serverUnreachable` as `AppError.from(transport:)` maps it: the server
+  /// answered the request by starting the update, and it keeps going after
+  /// the client stops waiting.
+  public func update(id: String) async throws -> Container {
+    let response: GraphQLResponse<UpdateContainerMutation>
+    do {
+      response = try await provider.client.perform(
+        mutation: UpdateContainerMutation(id: id),
+        requestConfiguration: RequestConfiguration(requestTimeout: updateTimeout)
+      )
+    } catch let error as URLError where error.code == .timedOut {
+      throw AppError.stillRunning("The update is still running on the server.")
+    }
+    if let errors = response.errors, !errors.isEmpty {
+      throw AppError.from(graphQLErrors: errors)
+    }
+    guard let data = response.data else {
+      throw AppError.decoding("Empty response for UpdateContainer.")
+    }
+    return Container(from: data.docker.updateContainer.fragments.dockerContainerFields)
   }
 
   /// Same `.networkOnly`/errors-check/nil-data-guard shape as `containers()`
@@ -177,15 +223,15 @@ extension ContainerStateUpdate {
 }
 
 extension Container {
-  /// Maps Apollo's generated `DockerContainersQuery.Data.Docker.Container`
-  /// into the domain model.
+  /// Maps Apollo's generated `DockerContainerFields` fragment into the
+  /// domain model. `DockerContainers` and `UpdateContainer` both select it.
   ///
   /// Deliberately **not** public: its parameter is an Apollo-generated type,
   /// and a public signature mentioning one would let callers construct a
   /// domain model straight from hand-rolled GraphQL data, skipping the
   /// error and nil-data guards in `containers()` that are supposed to be the
   /// only way in.
-  init(from container: DockerContainersQuery.Data.Docker.Container) {
+  init(from container: DockerContainerFields) {
     self.init(
       id: container.id,
       names: container.names,
@@ -215,7 +261,7 @@ extension Container {
 
 extension ContainerPort {
   /// Deliberately **not** public — see `Container.init(from:)` above.
-  init(from port: DockerContainersQuery.Data.Docker.Container.Port) {
+  init(from port: DockerContainerFields.Port) {
     self.init(
       ip: port.ip,
       // `TowerAPI.Port` is a `String` custom scalar (unmapped in

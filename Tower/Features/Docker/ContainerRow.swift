@@ -20,6 +20,13 @@ struct ContainerRow: View {
   /// the first (belt-and-suspenders alongside `DockerStore.perform(_:on:)`'s
   /// own in-flight guard, which is the actual source of truth).
   let isInFlight: Bool
+  /// Off while "Update All" runs, so one container is never updated twice at
+  /// once. Defaults on, for the previews.
+  var allowsUpdate = true
+  /// The last update timed out on the client and the server may still pull
+  /// (`DockerStore.isStillUpdatingOnServer`). The row shows the spinner and
+  /// offers no Update, so a second update cannot collide with the pull.
+  var isStillUpdating = false
   let onAction: (ContainerAction) -> Void
 
   /// Stop and Restart interrupt something the user is actively running —
@@ -57,7 +64,7 @@ struct ContainerRow: View {
             .accessibilityLabel(container.image)
         }
         Spacer()
-        if isInFlight {
+        if isInFlight || isStillUpdating {
           // Decorative only: announcing "busy" mid-VoiceOver-swipe with no
           // further action to take would be noise, not information. Not
           // asserted by a UI test — `FakeDockerRepository`
@@ -98,10 +105,14 @@ struct ContainerRow: View {
       titleVisibility: .visible,
       presenting: pendingConfirmation
     ) { action in
-      Button(confirmationTitle, role: .destructive) {
+      Button(action.confirmationVerb, role: action == .update ? nil : .destructive) {
         onAction(action)
       }
       Button("Cancel", role: .cancel) {}
+    } message: { action in
+      if action == .update {
+        Text(ContainerAction.updateConfirmationMessage)
+      }
     }
   }
 
@@ -146,6 +157,9 @@ struct ContainerRow: View {
     .disabled(isInFlight)
   }
 
+  /// Restart, then Update when the container reports one. Restart stays
+  /// first, so a full swipe still restarts.
+  @ViewBuilder
   private var trailingSwipeAction: some View {
     Button {
       pendingConfirmation = .restart
@@ -153,7 +167,22 @@ struct ContainerRow: View {
       Label("Restart", systemImage: "arrow.clockwise")
     }
     .disabled(isInFlight)
+
+    if canUpdate {
+      Button {
+        pendingConfirmation = .update
+      } label: {
+        Label("Update", systemImage: "arrow.down.circle")
+      }
+      .tint(.accentColor)
+      .disabled(isInFlight || !allowsUpdate)
+      .accessibilityIdentifier("docker.swipe.update")
+    }
   }
+
+  /// Only `true` offers an update — `nil` means "not determined", as
+  /// `updateBadge` says.
+  private var canUpdate: Bool { container.isUpdateAvailable == true && !isStillUpdating }
 
   /// Every applicable action plus Pause/Unpause, and an "Open Web UI" link
   /// when the server reported one.
@@ -193,6 +222,15 @@ struct ContainerRow: View {
           Label("Pause", systemImage: "pause.fill")
         }
       }
+
+      if canUpdate {
+        Button {
+          pendingConfirmation = .update
+        } label: {
+          Label("Update", systemImage: "arrow.down.circle")
+        }
+        .disabled(!allowsUpdate)
+      }
     }
     .disabled(isInFlight)
 
@@ -209,6 +247,7 @@ struct ContainerRow: View {
     switch pendingConfirmation {
     case .stop: "Stop \(container.displayName)?"
     case .restart: "Restart \(container.displayName)?"
+    case .update: "Update \(container.displayName)?"
     case .start, .pause, .unpause, nil: ""
     }
   }

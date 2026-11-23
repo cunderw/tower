@@ -28,8 +28,11 @@ struct ContainerDetailView: View {
   /// containers genuinely get removed (or renamed away, in Docker's model,
   /// replaced) while a user is looking at them. A real state to render
   /// (`ContentUnavailableView` below), not a defensive nicety.
+  ///
+  /// Through `DockerStore.container(id:)`, not a plain ID match: an update
+  /// recreates the container under a new ID, and this screen must stay on it.
   private var container: Container? {
-    store.state.value?.first { $0.id == containerID }
+    store.container(id: containerID)
   }
 
   var body: some View {
@@ -89,6 +92,13 @@ private struct ContainerDetailContent: View {
     }
     .navigationTitle(container.displayName)
     .navigationBarTitleDisplayMode(.large)
+    // Whole-point section geometry (issue #29). The default section header
+    // measures 40.33 pt and the default spacing 17.5 pt on a 3x iPhone, so
+    // every other card started half a pixel off the grid. Rounding then left
+    // a 1 px seam of background under its first row. 41 + 17 is the same
+    // 58 pt gap to within a sixth of a point.
+    .environment(\.defaultMinListHeaderHeight, 41)
+    .listSectionSpacing(17)
   }
 
   // MARK: - Logs
@@ -250,7 +260,14 @@ private struct ContainerActionsSection: View {
   /// fires. Start/Pause/Resume have nothing to lose, so they skip this.
   @State private var pendingConfirmation: ContainerAction?
 
-  private var isInFlight: Bool { store.inFlight.contains(container.id) }
+  private var isInFlight: Bool { store.isBusy(container) }
+  private var isUpdating: Bool { store.isUpdating(container) }
+  /// The last update timed out on the client and the server may still pull.
+  private var isStillUpdating: Bool { store.isStillUpdatingOnServer(container) }
+  /// This container's entry in the last update run, if it had one.
+  private var updateResult: ContainerUpdateReport.Entry? {
+    store.updateReport?.entries.first { $0.containerName == container.displayName }
+  }
 
   /// Anything currently "up" — running or paused — can legitimately be
   /// stopped; Docker rejects `start` on a container that's already up.
@@ -260,7 +277,13 @@ private struct ContainerActionsSection: View {
   }
 
   var body: some View {
-    Section("Actions") {
+    Section {
+      // First, below the Status section's "Update Available" notice. Stays
+      // while the update runs, so the progress shows where the user tapped.
+      if container.isUpdateAvailable == true || isUpdating {
+        updateButton
+      }
+
       if canStop {
         actionButton(
           "Stop", systemImage: "stop.fill", role: .destructive, identifier: "containerDetail.stopButton"
@@ -292,6 +315,14 @@ private struct ContainerActionsSection: View {
           perform(.pause)
         }
       }
+    } header: {
+      Text("Actions")
+    } footer: {
+      if let updateResult {
+        Text(updateResult.summary)
+          .foregroundStyle(updateResult.isFailure ? Color.red : Color.secondary)
+          .accessibilityIdentifier("containerDetail.updateResult")
+      }
     }
     // `presenting: pendingConfirmation` hands the action into the button
     // closure as a non-optional value captured when the dialog was built —
@@ -303,11 +334,56 @@ private struct ContainerActionsSection: View {
       titleVisibility: .visible,
       presenting: pendingConfirmation
     ) { action in
-      Button(confirmationTitle, role: .destructive) {
+      Button(action.confirmationVerb, role: action == .update ? nil : .destructive) {
         perform(action)
       }
       Button("Cancel", role: .cancel) {}
+    } message: { action in
+      if action == .update {
+        Text(ContainerAction.updateConfirmationMessage)
+      }
     }
+  }
+
+  /// Update, behind a confirmation like Stop and Restart: the container stops
+  /// and is recreated. Its confirm button has no destructive role, because the
+  /// container comes back. While the update runs, the row reads "Updating…"
+  /// with a spinner, because a pull can take minutes. After a client timeout
+  /// it reads "Still updating on the server" and stays off, so a second
+  /// update cannot collide with the pull (`DockerStore.isStillUpdatingOnServer`).
+  private var updateButton: some View {
+    Button {
+      pendingConfirmation = .update
+    } label: {
+      // Each branch a `Label` framed like `actionButton`'s, so the text
+      // starts on the same column as the other actions.
+      if isUpdating || isStillUpdating {
+        Label {
+          Text(isUpdating ? "Updating…" : "Still updating on the server")
+        } icon: {
+          ProgressView()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(.secondary)
+      } else {
+        Label("Update", systemImage: "arrow.down.circle")
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .foregroundStyle(Self.tint(role: nil, isEnabled: !isUpdateDisabled))
+      }
+    }
+    .disabled(isUpdateDisabled)
+    .accessibilityIdentifier("containerDetail.updateButton")
+  }
+
+  private var isUpdateDisabled: Bool { isInFlight || store.isUpdatingAll || isStillUpdating }
+
+  /// The row's colour: red or the accent while it can be tapped, and the
+  /// secondary colour while it is disabled. The explicit style overrides the
+  /// dimming a disabled button would otherwise get, so a row with an action
+  /// in flight would still look tappable without this.
+  private static func tint(role: ButtonRole?, isEnabled: Bool) -> Color {
+    guard isEnabled else { return .secondary }
+    return role == .destructive ? .red : .accentColor
   }
 
   private func perform(_ action: ContainerAction) {
@@ -336,7 +412,7 @@ private struct ContainerActionsSection: View {
     Button(role: role, action: action) {
       Label(title, systemImage: systemImage)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .foregroundStyle(role == .destructive ? Color.red : Color.accentColor)
+        .foregroundStyle(Self.tint(role: role, isEnabled: !isInFlight))
     }
     .disabled(isInFlight)
     .accessibilityIdentifier(identifier)
@@ -346,6 +422,7 @@ private struct ContainerActionsSection: View {
     switch pendingConfirmation {
     case .stop: "Stop \(container.displayName)?"
     case .restart: "Restart \(container.displayName)?"
+    case .update: "Update \(container.displayName)?"
     case .start, .pause, .unpause, nil: ""
     }
   }
@@ -356,6 +433,26 @@ private struct ContainerActionsSection: View {
       set: { isPresented in if !isPresented { pendingConfirmation = nil } }
     )
   }
+}
+
+extension ContainerAction {
+  /// The confirmation dialog's button: the verb alone, under the dialog's
+  /// "Stop code-server?" title. Shared by the row and the detail screen.
+  var confirmationVerb: String {
+    switch self {
+    case .start: "Start"
+    case .stop: "Stop"
+    case .restart: "Restart"
+    case .pause: "Pause"
+    case .unpause: "Resume"
+    case .update: "Update"
+    }
+  }
+
+  /// The update confirmation's message, shared by the row and the detail
+  /// screen.
+  static let updateConfirmationMessage =
+    "Tower pulls the latest image and recreates the container. It restarts when the update finishes."
 }
 
 #Preview("Running, with ports and links") {
@@ -466,5 +563,6 @@ private struct PreviewDockerRepository: DockerRepositoryProtocol {
   func restart(id: String) async throws -> ContainerStateUpdate { fatalError("not used in previews") }
   func pause(id: String) async throws -> ContainerStateUpdate { fatalError("not used in previews") }
   func unpause(id: String) async throws -> ContainerStateUpdate { fatalError("not used in previews") }
+  func update(id: String) async throws -> Container { fatalError("not used in previews") }
   func logs(id: String, tail: Int?, since: String?) async throws -> ContainerLogs { fatalError("not used in previews") }
 }

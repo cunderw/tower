@@ -91,7 +91,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   #expect(container.displayName == "sonarr")
   #expect(container.image == "linuxserver/sonarr")
@@ -108,7 +108,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   #expect(container.isUpdateAvailable == nil)
 }
@@ -123,7 +123,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   #expect(container.isUpdateAvailable == true)
 }
@@ -142,7 +142,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   #expect(container.ports.count == 2)
   let first = try #require(container.ports.first)
@@ -170,7 +170,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   // The container itself survived, which is the point.
   #expect(container.displayName == "sonarr")
@@ -187,7 +187,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   #expect(container.names.isEmpty)
   #expect(container.displayName == "linuxserver/orphan")
@@ -202,7 +202,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   #expect(container.networkMode == "bridge")
 }
@@ -216,7 +216,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   #expect(container.networkMode == nil)
 }
@@ -240,7 +240,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   #expect(container.webUiURL == nil)
   #expect(container.iconURL == nil)
@@ -260,7 +260,7 @@ private func containerMock(
   ]))
 
   let data = await DockerContainersQuery.Data.from(mock)
-  let container = try #require(data.docker?.containers.map(Container.init(from:)).first)
+  let container = try #require(data.docker?.containers.map { Container(from: $0.fragments.dockerContainerFields) }.first)
 
   // `http` as well as `https`: a container's web UI on a LAN is routinely plain
   // HTTP, and refusing it would break the most common link of the five.

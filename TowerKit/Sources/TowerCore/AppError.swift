@@ -24,6 +24,12 @@ public enum AppError: Error, Equatable, Sendable {
   /// condition rather than for Docker, for the reason `actionRefused`'s
   /// recovery text gives.
   case serviceUnavailable(String)
+  /// A long action the client stopped waiting for, while the server goes on
+  /// with it. The associated value says what is still running. Not
+  /// `.serverUnreachable`: the server took the request, and the action can
+  /// still succeed. A Docker container update is the one that throws it today,
+  /// because `updateContainer` answers only after the image pull finishes.
+  case stillRunning(String)
   /// A load the user (or a superseding request) cancelled.
   ///
   /// Deliberately a failure rather than a return to `.idle`: every screen already
@@ -56,6 +62,8 @@ public enum AppError: Error, Equatable, Sendable {
       detail
     case .serviceUnavailable(let service):
       "\(service) isn't available on this server."
+    case .stillRunning(let detail):
+      detail
     case .cancelled:
       "Cancelled."
     case .unknown(let detail):
@@ -93,6 +101,8 @@ public enum AppError: Error, Equatable, Sendable {
       "It may already be in that state, or this API key or password may not have permission for that action."
     case .serviceUnavailable:
       "It may be disabled or stopped. Start it in Unraid, then try again."
+    case .stillRunning:
+      "Refresh in a few minutes to see the result."
     case .cancelled:
       "Tap Try Again when you're ready."
     case .graphQL, .decoding, .unknown:

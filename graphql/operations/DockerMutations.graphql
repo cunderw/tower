@@ -3,3 +3,9 @@ mutation StopContainer($id: PrefixedID!)    { docker { stop(id: $id)    { id sta
 mutation RestartContainer($id: PrefixedID!) { docker { restart(id: $id) { id state status } } }
 mutation PauseContainer($id: PrefixedID!)   { docker { pause(id: $id)   { id state status } } }
 mutation UnpauseContainer($id: PrefixedID!) { docker { unpause(id: $id) { id state status } } }
+
+# Blocks until the image pull and the recreate finish, and answers with the
+# recreated container, which has a new ID. Tower updates several containers
+# with one request each, not with `updateAllContainers`: that mutation stops
+# at the first failure and discards the results of the updates before it.
+mutation UpdateContainer($id: PrefixedID!) { docker { updateContainer(id: $id) { ...DockerContainerFields } } }

@@ -73,6 +73,13 @@ import Testing
   #expect(error.recoverySuggestion == "It may be disabled or stopped. Start it in Unraid, then try again.")
 }
 
+@Test func stillRunningShowsItsDetailAndSaysToRefreshLater() {
+  // Not "Couldn't reach the server": the server took the request.
+  let error = AppError.stillRunning("The update is still running on the server.")
+  #expect(error.message == "The update is still running on the server.")
+  #expect(error.recoverySuggestion == "Refresh in a few minutes to see the result.")
+}
+
 @Test func actionRefusedIsNotConflatedWithUnknown() {
   // The distinction the case exists for: a refusal is a specific, explainable
   // outcome, and collapsing it into `.unknown` would have put

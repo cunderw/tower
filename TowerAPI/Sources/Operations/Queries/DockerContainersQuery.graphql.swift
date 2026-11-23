@@ -8,7 +8,8 @@ nonisolated public struct DockerContainersQuery: GraphQLQuery {
   public static let operationName: String = "DockerContainers"
   public static let operationDocument: ApolloAPI.OperationDocument = .init(
     definition: .init(
-      #"query DockerContainers { docker { __typename containers { __typename id names image state status autoStart isUpdateAvailable isOrphaned webUiUrl iconUrl projectUrl supportUrl registryUrl templatePath hostConfig { __typename networkMode } ports { __typename ip privatePort publicPort type } } } }"#
+      #"query DockerContainers { docker { __typename containers { __typename ...DockerContainerFields } } }"#,
+      fragments: [DockerContainerFields.self]
     ))
 
   public init() {}
@@ -63,25 +64,11 @@ nonisolated public struct DockerContainersQuery: GraphQLQuery {
         @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.DockerContainer }
         @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
           .field("__typename", String.self),
-          .field("id", TowerAPI.PrefixedID.self),
-          .field("names", [String].self),
-          .field("image", String.self),
-          .field("state", GraphQLEnum<TowerAPI.ContainerState>.self),
-          .field("status", String.self),
-          .field("autoStart", Bool.self),
-          .field("isUpdateAvailable", Bool?.self),
-          .field("isOrphaned", Bool.self),
-          .field("webUiUrl", String?.self),
-          .field("iconUrl", String?.self),
-          .field("projectUrl", String?.self),
-          .field("supportUrl", String?.self),
-          .field("registryUrl", String?.self),
-          .field("templatePath", String?.self),
-          .field("hostConfig", HostConfig?.self),
-          .field("ports", [Port].self),
+          .fragment(DockerContainerFields.self),
         ] }
         @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
-          DockerContainersQuery.Data.Docker.Container.self
+          DockerContainersQuery.Data.Docker.Container.self,
+          DockerContainerFields.self
         ] }
 
         public var id: TowerAPI.PrefixedID { __data["id"] }
@@ -146,49 +133,16 @@ nonisolated public struct DockerContainersQuery: GraphQLQuery {
         public var hostConfig: HostConfig? { __data["hostConfig"] }
         public var ports: [Port] { __data["ports"] }
 
-        /// Docker.Container.HostConfig
-        ///
-        /// Parent Type: `ContainerHostConfig`
-        nonisolated public struct HostConfig: TowerAPI.SelectionSet {
+        public struct Fragments: FragmentContainer {
           @_spi(Unsafe) public let __data: DataDict
           @_spi(Unsafe) public init(_dataDict: DataDict) { __data = _dataDict }
 
-          @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.ContainerHostConfig }
-          @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
-            .field("__typename", String.self),
-            .field("networkMode", String.self),
-          ] }
-          @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
-            DockerContainersQuery.Data.Docker.Container.HostConfig.self
-          ] }
-
-          public var networkMode: String { __data["networkMode"] }
+          public var dockerContainerFields: DockerContainerFields { _toFragment() }
         }
 
-        /// Docker.Container.Port
-        ///
-        /// Parent Type: `ContainerPort`
-        nonisolated public struct Port: TowerAPI.SelectionSet {
-          @_spi(Unsafe) public let __data: DataDict
-          @_spi(Unsafe) public init(_dataDict: DataDict) { __data = _dataDict }
+        public typealias HostConfig = DockerContainerFields.HostConfig
 
-          @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.ContainerPort }
-          @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
-            .field("__typename", String.self),
-            .field("ip", String?.self),
-            .field("privatePort", TowerAPI.Port?.self),
-            .field("publicPort", TowerAPI.Port?.self),
-            .field("type", GraphQLEnum<TowerAPI.ContainerPortType>.self),
-          ] }
-          @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
-            DockerContainersQuery.Data.Docker.Container.Port.self
-          ] }
-
-          public var ip: String? { __data["ip"] }
-          public var privatePort: TowerAPI.Port? { __data["privatePort"] }
-          public var publicPort: TowerAPI.Port? { __data["publicPort"] }
-          public var type: GraphQLEnum<TowerAPI.ContainerPortType> { __data["type"] }
-        }
+        public typealias Port = DockerContainerFields.Port
       }
     }
   }
