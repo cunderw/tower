@@ -33,6 +33,9 @@ struct DockerListView: View {
   /// Opens that service's screen, in the Services tab.
   var openService: (ServiceInstance) -> Void = { _ in }
 
+  /// Shows the "Update All" confirmation.
+  @State private var isConfirmingUpdateAll = false
+
   var body: some View {
     ListDetailScaffold(
       selection: $selection,
@@ -46,6 +49,27 @@ struct DockerListView: View {
       content(isSplit: isSplit)
         .navigationTitle("Docker")
         .searchable(text: $store.searchText, prompt: "Search containers")
+        .toolbar { updateAllToolbarItem }
+        .confirmationDialog(
+          updateAllTitle,
+          isPresented: $isConfirmingUpdateAll,
+          titleVisibility: .visible
+        ) {
+          Button("Update All") { Task { await store.updateAll() } }
+          Button("Cancel", role: .cancel) {}
+        } message: {
+          Text(updateAllMessage)
+        }
+        // An update recreates the container under a new ID. In the split
+        // layout the selection is the list's highlight, so it follows the
+        // container to its new ID. Only a selection that names an old ID
+        // moves: on iPhone the selection is `nil` after a row tap, and
+        // setting it would push the detail screen.
+        .onChange(of: store.replacedIDs) {
+          guard isSplit, let selection, let current = store.container(id: selection)?.id,
+                current != selection else { return }
+          self.selection = current
+        }
         .modifier(
           TowerToolbarModifier(
             isShowingNotifications: $isShowingNotifications,
@@ -159,6 +183,7 @@ struct DockerListView: View {
           .font(.caption)
           .foregroundStyle(.red)
       }
+      updateStatusRow
       ForEach(store.filteredContainers) { container in
         // Carries the identifier, not the `Container` value itself.
         // The scaffold's `detail` closure re-resolves this container
@@ -170,7 +195,8 @@ struct DockerListView: View {
         // attached inside `ContainerRow`'s body and are unaffected either way.
         ContainerRow(
           container: container,
-          isInFlight: store.inFlight.contains(container.id)
+          isInFlight: store.isBusy(container),
+          allowsUpdate: !store.isUpdatingAll
         ) { action in
           Task { await store.perform(action, on: container) }
         }
@@ -202,6 +228,76 @@ struct DockerListView: View {
       }
     }
     .refreshable { await store.refresh() }
+  }
+}
+
+extension DockerListView {
+  /// "Update All", while at least one container reports an update or a run
+  /// is going. Leading, because the trailing side holds the bell and Settings,
+  /// which every tab carries.
+  @ToolbarContentBuilder
+  private var updateAllToolbarItem: some ToolbarContent {
+    if !store.containersWithUpdates.isEmpty || store.isUpdatingAll {
+      ToolbarItem(placement: .topBarLeading) {
+        Button("Update All") { isConfirmingUpdateAll = true }
+          .disabled(store.isUpdatingAll)
+          .accessibilityIdentifier("docker.updateAll")
+      }
+    }
+  }
+
+  private var updateAllTitle: String {
+    let count = store.containersWithUpdates.count
+    return count == 1 ? "Update 1 container?" : "Update \(count) containers?"
+  }
+
+  /// Names the containers, so the user knows which ones restart.
+  private var updateAllMessage: String {
+    let names = store.containersWithUpdates.map(\.displayName).formatted(.list(type: .and))
+    return "Tower updates \(names) one at a time. Each restarts when its update finishes."
+  }
+
+  /// A failure outranks an update still running on the server, which
+  /// outranks success.
+  @ViewBuilder
+  private func reportIcon(_ report: ContainerUpdateReport) -> some View {
+    if report.hasFailure {
+      Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.red)
+    } else if report.hasStillRunning {
+      Image(systemName: "clock.fill").foregroundStyle(Color.orange)
+    } else {
+      Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.green)
+    }
+  }
+
+  /// The top row while an update runs or after one: "Update All" progress,
+  /// then the result until the user dismisses it. A single update shows its
+  /// spinner on its own row instead, and its result here.
+  @ViewBuilder
+  private var updateStatusRow: some View {
+    if let progress = store.updateProgress {
+      HStack(spacing: 8) {
+        ProgressView()
+        Text("Updating \(progress.containerName)… \(progress.position) of \(progress.total)")
+          .font(.subheadline)
+      }
+      .accessibilityElement(children: .combine)
+      .accessibilityIdentifier("docker.updateProgress")
+    } else if let report = store.updateReport {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        reportIcon(report)
+          .accessibilityHidden(true)
+        Text(report.summary)
+          .font(.subheadline)
+          .accessibilityIdentifier("docker.updateReport")
+        Spacer(minLength: 0)
+        Button("Dismiss", systemImage: "xmark") { store.dismissUpdateReport() }
+          .labelStyle(.iconOnly)
+          .buttonStyle(.borderless)
+          .foregroundStyle(.secondary)
+          .accessibilityIdentifier("docker.updateReport.dismiss")
+      }
+    }
   }
 }
 

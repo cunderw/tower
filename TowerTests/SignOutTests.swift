@@ -131,6 +131,7 @@ private struct StubDockerRepository: DockerRepositoryProtocol {
   func restart(id: String) async throws -> ContainerStateUpdate { unreachable() }
   func pause(id: String) async throws -> ContainerStateUpdate { unreachable() }
   func unpause(id: String) async throws -> ContainerStateUpdate { unreachable() }
+  func update(id: String) async throws -> Container { unreachable() }
   func logs(id: String, tail: Int?, since: String?) async throws -> ContainerLogs { unreachable() }
 
   /// Nothing in `SignOutTests` ever triggers a container action or fetches

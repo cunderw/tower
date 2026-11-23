@@ -107,6 +107,26 @@ final class DemoServer: @unchecked Sendable {
     return ContainerStateUpdate(id: id, state: state, status: status)
   }
 
+  /// Recreates a container from its latest image, as `updateContainer` does:
+  /// the recreated container has a new ID and no update to report. `nil` for
+  /// an ID the demo does not have.
+  func recreateWithLatestImage(id: String) -> Container? {
+    lock.withLock {
+      guard let index = containers.firstIndex(where: { $0.id == id }) else { return nil }
+      let old = containers[index]
+      let recreated = Container(
+        id: "\(old.id)-updated", names: old.names, image: old.image, state: old.state,
+        status: old.isRunning ? "Up less than a minute" : old.status, autoStart: old.autoStart,
+        isUpdateAvailable: false, isOrphaned: old.isOrphaned, webUiURL: old.webUiURL,
+        iconURL: old.iconURL, projectURL: old.projectURL, supportURL: old.supportURL,
+        registryURL: old.registryURL, templatePath: old.templatePath,
+        networkMode: old.networkMode, ports: old.ports
+      )
+      containers[index] = recreated
+      return recreated
+    }
+  }
+
   func updateDomain(id: String, state: VMState) {
     lock.withLock {
       domains = domains.map { domain in

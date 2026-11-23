@@ -241,6 +241,7 @@ private struct UnreachablePreviewDockerRepository: DockerRepositoryProtocol {
   func restart(id: String) async throws -> ContainerStateUpdate { fatalError("not used in previews") }
   func pause(id: String) async throws -> ContainerStateUpdate { fatalError("not used in previews") }
   func unpause(id: String) async throws -> ContainerStateUpdate { fatalError("not used in previews") }
+  func update(id: String) async throws -> Container { fatalError("not used in previews") }
   func logs(id: String, tail: Int?, since: String?) async throws -> ContainerLogs {
     fatalError("not used in previews")
   }

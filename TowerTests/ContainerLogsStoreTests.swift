@@ -142,6 +142,7 @@ private final class StubLogsRepository: DockerRepositoryProtocol, @unchecked Sen
   func restart(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
   func pause(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
   func unpause(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
+  func update(id: String) async throws -> Container { preconditionFailure("not used") }
 
   func logs(id: String, tail: Int?, since: String?) async throws -> ContainerLogs {
     requestedTails.append(tail)
