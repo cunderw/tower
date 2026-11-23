@@ -93,6 +93,12 @@ final class ParityCheckUITests: XCTestCase {
     XCTAssertTrue(resume.waitForExistence(timeout: 10), "Resume never appeared after Pause")
     XCTAssertFalse(pause.exists, "Pause should be gone from a paused check")
     XCTAssertTrue(action("cancel", in: app).exists, "a paused check can still be cancelled")
+    // The progress line says so too, without the speed of a check that is not moving.
+    let pausedLine = app.descendants(matching: .any).matching(
+      NSPredicate(format: "label BEGINSWITH %@", "Parity check paused")
+    ).firstMatch
+    XCTAssertTrue(pausedLine.waitForExistence(timeout: 5), "the progress line still reads as running")
+    XCTAssertFalse(pausedLine.label.contains("MB/s"), pausedLine.label)
     try saveScreenshot(named: "parity-dashboard-paused")
 
     resume.tap()
@@ -102,7 +108,7 @@ final class ParityCheckUITests: XCTestCase {
 
   // MARK: - Confirmations
 
-  func testCancelAsksFirstAndDontCancelKeepsTheCheck() throws {
+  func testCancelAsksForConfirmationFirst() throws {
     let app = launch()
     waitForDashboard(app)
 
@@ -113,16 +119,14 @@ final class ParityCheckUITests: XCTestCase {
     let confirm = dialogButton("Cancel Check", in: app)
     XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Cancel Check did not ask for confirmation")
     XCTAssertTrue(app.staticTexts["Cancel the parity check?"].exists, "the confirmation has no title")
+    // Asking is not cancelling: the check still runs while the dialog is open.
+    XCTAssertTrue(action("pause", in: app).exists)
+    XCTAssertFalse(action("start", in: app).exists)
     try saveScreenshot(named: "parity-cancel-confirmation")
-
-    // iPad shows the dialog as a popover with no dismiss button; tapping
-    // outside it is SwiftUI's own mechanics. The phone's sheet has one.
-    let keep = dialogButton("Don't Cancel", in: app)
-    if keep.exists {
-      keep.tap()
-      XCTAssertTrue(action("pause", in: app).waitForExistence(timeout: 5))
-      XCTAssertFalse(action("start", in: app).exists, "dismissing the confirmation must not cancel the check")
-    }
+    // Not dismissed. On both devices SwiftUI shows this dialog as a popover
+    // anchored to the button and drops the "Don't Cancel" button, so the
+    // only dismissal is a tap outside: SwiftUI's mechanics, not this app's.
+    // `ScreenshotTourUITests`' Force Stop capture says the same.
   }
 
   func testStartAsksWhetherToCorrectAndPassesTheChoice() throws {

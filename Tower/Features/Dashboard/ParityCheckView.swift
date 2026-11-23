@@ -70,10 +70,10 @@ struct ParityCheckView: View {
   }
 
   /// "63% · 150 MB/s". A nil percent is "—", not 0%, and the idle "0" speed
-  /// is dropped, as on the hero card.
+  /// and a paused check's last speed are dropped, as on the hero card.
   private func progressLine(_ parity: ParityStatus) -> String {
     var line = parity.progressPercent.map { "\($0)%" } ?? "—"
-    if let speed = parity.speed, !speed.isEmpty, speed != "0" {
+    if parity.state != .paused, let speed = parity.speed, !speed.isEmpty, speed != "0" {
       line += " · \(speed)"
     }
     return line

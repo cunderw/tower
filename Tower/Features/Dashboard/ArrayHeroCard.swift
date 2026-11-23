@@ -130,7 +130,7 @@ struct ArrayHeroCard: View {
       // unknown-reads-as-zero hazard the capacity ring and the errors
       // clause elsewhere in this file already guard against.
       ProgressView(value: parity.progressFraction ?? 0) {
-        Text("Parity check · \(parityPercentText)\(speedSuffix)")
+        Text("\(parityProgressTitle) · \(parityPercentText)\(speedSuffix)")
       }
       if parity.correcting {
         Text("Correcting")
@@ -164,6 +164,12 @@ struct ArrayHeroCard: View {
     }
   }
 
+  /// "Parity check paused" while paused: the buttons alone would leave the
+  /// progress line reading as a running check.
+  private var parityProgressTitle: String {
+    parity.state == .paused ? "Parity check paused" : "Parity check"
+  }
+
   private var parityPercentText: String {
     guard let percent = parity.progressPercent else { return "—" }
     return "\(percent)%"
@@ -175,8 +181,11 @@ struct ArrayHeroCard: View {
   /// "not a genuine reading," not "0 MB/s mid-check," so it's filtered out
   /// here exactly like a nil value would be — this section only ever renders
   /// while `parity.isActive` in the first place.
+  /// A paused check shows no speed either.
   private var speedSuffix: String {
-    guard let speed = parity.speed, !speed.isEmpty, speed != "0" else { return "" }
+    // A paused check is not moving, whatever speed it last reported.
+    guard parity.state != .paused,
+          let speed = parity.speed, !speed.isEmpty, speed != "0" else { return "" }
     return " · \(speed)"
   }
 
