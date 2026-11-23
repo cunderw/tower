@@ -67,6 +67,7 @@ nonisolated public enum SchemaMetadata: ApolloAPI.SchemaMetadata {
     "NotificationOverview": TowerAPI.Objects.NotificationOverview,
     "Notifications": TowerAPI.Objects.Notifications,
     "ParityCheck": TowerAPI.Objects.ParityCheck,
+    "ParityCheckMutations": TowerAPI.Objects.ParityCheckMutations,
     "ProfileModel": TowerAPI.Objects.ProfileModel,
     "Query": TowerAPI.Objects.Query,
     "Registration": TowerAPI.Objects.Registration,

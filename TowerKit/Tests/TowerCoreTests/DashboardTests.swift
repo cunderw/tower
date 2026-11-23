@@ -111,3 +111,66 @@ extension ParityStatus {
     )
   }
 }
+
+struct ParityActionTests {
+  @Test func anIdleCheckOffersOnlyStartOnAStartedArrayWithParity() {
+    for state in [ParityCheckState.neverRun, .completed, .cancelled, .failed] {
+      #expect(
+        ParityStatus.fixture(state: state).availableActions(arrayStarted: true, hasParityDisks: true) == [.start],
+        "\(state)"
+      )
+    }
+  }
+
+  /// Unraid refuses a check on a stopped array, and an array with no parity
+  /// disk has nothing to check. A Start button there only produces an error.
+  @Test func startIsHiddenOnAStoppedArrayOrWithoutParityDisks() {
+    let idle = ParityStatus.fixture(state: .completed)
+    #expect(idle.availableActions(arrayStarted: false, hasParityDisks: true).isEmpty)
+    #expect(idle.availableActions(arrayStarted: true, hasParityDisks: false).isEmpty)
+  }
+
+  @Test func aRunningCheckOffersPauseAndCancel() {
+    #expect(
+      ParityStatus.fixture(state: .running).availableActions(arrayStarted: true, hasParityDisks: true)
+        == [.pause, .cancel]
+    )
+  }
+
+  @Test func aPausedCheckOffersResumeAndCancel() {
+    #expect(
+      ParityStatus.fixture(state: .paused).availableActions(arrayStarted: true, hasParityDisks: true)
+        == [.resume, .cancel]
+    )
+  }
+
+  /// A state Tower cannot read gets no button that assumes one.
+  @Test func anUnknownStateOffersNothing() {
+    #expect(
+      ParityStatus.fixture(state: .unknown).availableActions(arrayStarted: true, hasParityDisks: true).isEmpty
+    )
+  }
+
+  /// The confirmation dialog has its own dismiss button. Two buttons both
+  /// labelled "Cancel" that do opposite things is a trap.
+  @Test func noActionIsTitledPlainCancel() {
+    #expect(!ParityAction.allCases.map(\.title).contains("Cancel"))
+  }
+}
+
+struct ParityCheckRecordTests {
+  private func record(speed: String?) -> ParityCheckRecord {
+    ParityCheckRecord(id: 0, date: nil, durationSeconds: nil, speed: speed, state: .completed, errors: nil)
+  }
+
+  @Test func speedTextKeepsARealReading() {
+    #expect(record(speed: "133.1 MB/s").speedText == "133.1 MB/s")
+  }
+
+  /// Every one of these is on the live server's history.
+  @Test func speedTextDropsTheServersNonReadings() {
+    for speed in [nil, "", "0", "Unavailable", "nan B/s", "NaN MB/s"] {
+      #expect(record(speed: speed).speedText == nil, "\(String(describing: speed))")
+    }
+  }
+}

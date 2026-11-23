@@ -14,6 +14,7 @@ nonisolated public final class Mutation: MockObject {
     @Field<Notification>("archiveNotification") public var archiveNotification
     @Field<NotificationOverview>("deleteNotification") public var deleteNotification
     @Field<DockerMutations>("docker") public var docker
+    @Field<ParityCheckMutations>("parityCheck") public var parityCheck
     @Field<Notification>("unreadNotification") public var unreadNotification
     @Field<VmMutations>("vm") public var vm
   }
@@ -25,6 +26,7 @@ public extension Mock where O == Mutation {
     archiveNotification: Mock<Notification> = Mock<Notification>(),
     deleteNotification: Mock<NotificationOverview> = Mock<NotificationOverview>(),
     docker: Mock<DockerMutations> = Mock<DockerMutations>(),
+    parityCheck: Mock<ParityCheckMutations> = Mock<ParityCheckMutations>(),
     unreadNotification: Mock<Notification> = Mock<Notification>(),
     vm: Mock<VmMutations> = Mock<VmMutations>()
   ) {
@@ -33,6 +35,7 @@ public extension Mock where O == Mutation {
     _setEntity(archiveNotification, for: \.archiveNotification)
     _setEntity(deleteNotification, for: \.deleteNotification)
     _setEntity(docker, for: \.docker)
+    _setEntity(parityCheck, for: \.parityCheck)
     _setEntity(unreadNotification, for: \.unreadNotification)
     _setEntity(vm, for: \.vm)
   }

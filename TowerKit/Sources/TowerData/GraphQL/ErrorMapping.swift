@@ -85,4 +85,19 @@ extension Array where Element == GraphQLError {
       return error.isAuthFailure
     }
   }
+
+  /// The errors left after dropping field errors inside one `parityHistory`
+  /// row (path `parityHistory.<n>.<field>`), whose field the server has
+  /// already nulled. See `LiveSystemRepository.parityHistory()`. An error at
+  /// the list or at a whole row is kept, and so is an auth error anywhere.
+  func excludingParityHistoryFieldFailures() -> [GraphQLError] {
+    filter { error in
+      guard let path = error.path, path.count == 3,
+            path[0] == .field("parityHistory"),
+            case .index = path[1],
+            case .field = path[2]
+      else { return true }
+      return error.isAuthFailure
+    }
+  }
 }

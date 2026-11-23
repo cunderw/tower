@@ -62,6 +62,114 @@ public struct ParityStatus: Equatable, Sendable {
   }
 }
 
+/// One `ParityCheckMutations` action. Start also takes a correct-or-check-only
+/// choice, which the store passes alongside it; see `DashboardStore.perform`.
+public enum ParityAction: Hashable, Sendable, CaseIterable {
+  case start, pause, resume, cancel
+
+  /// The verb as it appears on a button. "Cancel Check", not "Cancel": the
+  /// confirmation dialog has a dismiss button of its own, and two buttons
+  /// labelled "Cancel" that do opposite things is a trap.
+  public var title: String {
+    switch self {
+    case .start: "Start Check"
+    case .pause: "Pause"
+    case .resume: "Resume"
+    case .cancel: "Cancel Check"
+    }
+  }
+
+  /// A stable slug for accessibility identifiers, `parity.action.cancel`. Not
+  /// derived from `title`, so a copy change cannot repoint a UI test.
+  public var identifier: String {
+    switch self {
+    case .start: "start"
+    case .pause: "pause"
+    case .resume: "resume"
+    case .cancel: "cancel"
+    }
+  }
+}
+
+extension ParityStatus {
+  /// The actions that apply to this check right now, in display order.
+  ///
+  /// - Start: only when no check is in flight, the array is started, and the
+  ///   array has a parity disk. Unraid refuses a check on a stopped array, and
+  ///   an array with no parity disk has nothing to check.
+  /// - Pause and Cancel: a running check.
+  /// - Resume and Cancel: a paused check.
+  /// - Nothing for `.unknown`: a state Tower cannot read gets no button that
+  ///   assumes one.
+  public func availableActions(arrayStarted: Bool, hasParityDisks: Bool) -> [ParityAction] {
+    switch state {
+    case .running: [.pause, .cancel]
+    case .paused: [.resume, .cancel]
+    case .neverRun, .completed, .cancelled, .failed:
+      arrayStarted && hasParityDisks ? [.start] : []
+    case .unknown: []
+    }
+  }
+}
+
+extension DashboardSnapshot {
+  /// `ParityStatus.availableActions` for this snapshot's array.
+  public var availableParityActions: [ParityAction] {
+    parity.availableActions(arrayStarted: array.isStarted, hasParityDisks: !array.parities.isEmpty)
+  }
+}
+
+/// One row of `Query.parityHistory`: a past check.
+public struct ParityCheckRecord: Equatable, Sendable, Identifiable {
+  /// The row's position in the sorted history. The server sends no ID, and two
+  /// rows can share every field.
+  public let id: Int
+  /// `nil` when the server's timestamp does not parse, or is the Unix epoch:
+  /// Unraid writes 1970-01-01 for a history line it could not date.
+  public let date: Date?
+  public let durationSeconds: Int?
+  /// Free-form, as sent ("133.1 MB/s"). See `speedText`.
+  public let speed: String?
+  public let state: ParityCheckState
+  /// `nil` when the server could not report a count. Unraid nulls a NaN.
+  public let errors: Int?
+
+  public init(id: Int, date: Date?, durationSeconds: Int?, speed: String?, state: ParityCheckState, errors: Int?) {
+    self.id = id
+    self.date = date
+    self.durationSeconds = durationSeconds
+    self.speed = speed
+    self.state = state
+    self.errors = errors
+  }
+
+  /// The speed to show, or `nil` when the server sent no real reading. Unraid
+  /// writes "Unavailable" for a check that never measured one, "nan B/s" for a
+  /// zero-length check, and "0" while idle.
+  public var speedText: String? {
+    guard let speed = speed?.trimmingCharacters(in: .whitespaces), !speed.isEmpty, speed != "0",
+          speed.caseInsensitiveCompare("Unavailable") != .orderedSame,
+          !speed.lowercased().hasPrefix("nan")
+    else { return nil }
+    return speed
+  }
+}
+
+extension ParityCheckState {
+  /// The state as a history row or the status line shows it.
+  public var displayName: String {
+    switch self {
+    case .neverRun: "Never run"
+    case .running: "Running"
+    case .paused: "Paused"
+    case .completed: "Completed"
+    case .cancelled: "Cancelled"
+    case .failed: "Failed"
+    case .unknown: "Unknown"
+    }
+  }
+}
+
 public struct ServiceCounts: Equatable, Sendable {
   /// `nil` means Docker reporting is unavailable — the Docker service is
   /// disabled or stopped, and its counts query failed — not "zero containers".
