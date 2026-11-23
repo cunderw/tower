@@ -308,8 +308,9 @@ final class FakeArray: @unchecked Sendable {
     /// `FakeSystemRepository.arrayActionFailureMessage`.
     case actionFails
     /// `array-slow`: a started array whose actions take 90 s, so a test can
-    /// photograph the progress line. Longer than XCTest's 60 s wait for
-    /// animations to end, which the spinner holds open.
+    /// photograph the progress line. The delay only has to outlast the test,
+    /// which ends while the action is still in flight, so the progress line
+    /// stays up for every assertion and the capture.
     case slow
 
     var startsStopped: Bool { self == .stopped || self == .encrypted }

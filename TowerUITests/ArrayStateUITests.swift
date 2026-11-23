@@ -118,8 +118,8 @@ final class ArrayStateUITests: XCTestCase {
     XCTAssertFalse(app.buttons["parity.action.pause"].exists)
   }
 
-  /// The fake holds the action for 90 s, so this test waits out XCTest's
-  /// 60 s animation wait while the spinner turns.
+  /// The fake holds the action for 90 s. The test ends long before that, so
+  /// the progress line stays up for every assertion and the capture.
   func testTheControlsAreReplacedByAProgressLineWhileTheArrayStops() throws {
     let app = launch(state: "array-slow")
     askToStop(in: app).tap()
@@ -183,7 +183,7 @@ final class ArrayStateUITests: XCTestCase {
     let value = again.value as? String ?? ""
     XCTAssertTrue(value.isEmpty || value == "Passphrase", "the field kept the last passphrase: \(value.count) characters")
     app.buttons["array.passphrase.cancel"].tap()
-    XCTAssertFalse(again.waitForExistence(timeout: 2), "Cancel did not close the sheet")
+    XCTAssertTrue(again.waitForNonExistence(timeout: 5), "Cancel did not close the sheet")
   }
 
   // MARK: - Failure

@@ -64,10 +64,14 @@ extension ArrayStatus {
 }
 
 public enum ArrayPassphrase {
-  /// Whether the server can accept `passphrase`. Unraid base64-encodes the
-  /// passphrase and accepts printable ASCII only (space to tilde), so an
-  /// emoji or an accented letter can never unlock the array. Empty is not
-  /// valid either.
+  /// Whether the server can accept `passphrase`: printable ASCII, space to
+  /// tilde, at least one character. The rule is unraid/api's own, in
+  /// `encodeDecryptionPassword` (api/src/unraid-api/graph/resolvers/array/
+  /// array.service.ts, lines 34-45 at tag v4.37.12): it tests the passphrase
+  /// against `/^[ -~]+$/`, throws "Decryption password must use printable
+  /// ASCII characters" when that fails, and base64-encodes it otherwise. So an
+  /// emoji or an accented letter can never unlock the array, and an empty
+  /// passphrase never matches.
   public static func isValid(_ passphrase: String) -> Bool {
     !passphrase.isEmpty && passphrase.unicodeScalars.allSatisfy { (0x20...0x7E).contains($0.value) }
   }
