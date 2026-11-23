@@ -10,6 +10,21 @@ import TowerCore
 public protocol SystemRepositoryProtocol: Sendable {
   func testConnection() async throws -> Bool
   func dashboard() async throws -> DashboardSnapshot
+
+  /// The four parity check actions. Each returns once the server accepts the
+  /// request, and throws on a GraphQL error. The server's payload is untyped
+  /// `JSON` and carries no state Tower reads, so the caller re-fetches
+  /// `dashboard()` to learn the new one.
+  ///
+  /// `correct` writes corrections to parity, rather than only counting
+  /// mismatches.
+  func startParityCheck(correct: Bool) async throws
+  func pauseParityCheck() async throws
+  func resumeParityCheck() async throws
+  func cancelParityCheck() async throws
+
+  /// Past parity checks, newest first. A row with no readable date sorts last.
+  func parityHistory() async throws -> [ParityCheckRecord]
 }
 
 public struct LiveSystemRepository: SystemRepositoryProtocol {
@@ -64,6 +79,54 @@ public struct LiveSystemRepository: SystemRepositoryProtocol {
     // store's cancelled state.
     try Task.checkCancellation()
     return DashboardSnapshot(from: data, containers: counts.containers, vms: counts.vms)
+  }
+
+  public func startParityCheck(correct: Bool) async throws {
+    try await performParityAction(StartParityCheckMutation(correct: correct))
+  }
+
+  public func pauseParityCheck() async throws {
+    try await performParityAction(PauseParityCheckMutation())
+  }
+
+  public func resumeParityCheck() async throws {
+    try await performParityAction(ResumeParityCheckMutation())
+  }
+
+  public func cancelParityCheck() async throws {
+    try await performParityAction(CancelParityCheckMutation())
+  }
+
+  /// Shared body for the four parity actions. The payload is decoded (Apollo
+  /// requires that, which is why `JSON` accepts any value) and then ignored.
+  private func performParityAction<Mutation: GraphQLMutation>(
+    _ mutation: Mutation
+  ) async throws where Mutation.ResponseFormat == SingleResponseFormat {
+    let response = try await provider.client.perform(mutation: mutation)
+    if let errors = response.errors, !errors.isEmpty {
+      throw AppError.from(graphQLErrors: errors)
+    }
+    guard response.data != nil else {
+      throw AppError.decoding("Empty response for \(Mutation.operationName).")
+    }
+  }
+
+  /// A field error inside one history row does not fail the list. Unraid's
+  /// history can hold a line it cannot parse: the live server answers with a
+  /// row whose `errors` is NaN, which GraphQL cannot represent as an `Int`,
+  /// so the server nulls that one field and adds an `errors` entry at
+  /// `parityHistory.<n>.errors`. The null already says "unknown", so that
+  /// entry says nothing the data does not. Any other error still throws.
+  public func parityHistory() async throws -> [ParityCheckRecord] {
+    let response = try await provider.client.fetch(query: ParityHistoryQuery(), cachePolicy: .networkOnly)
+    let errors = (response.errors ?? []).excludingParityHistoryFieldFailures()
+    if !errors.isEmpty {
+      throw AppError.from(graphQLErrors: errors)
+    }
+    guard let data = response.data else {
+      throw AppError.decoding("Empty response for ParityHistory.")
+    }
+    return ParityCheckRecord.sortedHistory(from: data.parityHistory)
   }
 
   /// One optional row's counts, or `nil` for "Unavailable". Never throws:
@@ -284,5 +347,46 @@ extension ServiceCounts {
       // not obtainable from this API; see `Share`'s doc comment.
       sharesTotal: data.shares.count
     )
+  }
+}
+
+extension ParityCheckRecord {
+  /// Deliberately **not** public — see
+  /// `DashboardSnapshot.init(from:containers:vms:)` above.
+  ///
+  /// Newest first. The server does not sort its history: the live one returns
+  /// a 1970 row between two 2020 rows. A row with no readable date sorts last,
+  /// and rows with equal dates keep the server's order.
+  static func sortedHistory(from rows: [ParityHistoryQuery.Data.ParityHistory]) -> [ParityCheckRecord] {
+    let dated = rows.enumerated().map { offset, row in
+      (offset: offset, row: row, date: historyDate(row.date))
+    }
+    let sorted = dated.sorted { lhs, rhs in
+      switch (lhs.date, rhs.date) {
+      case let (left?, right?) where left != right: left > right
+      case (.some, .none): true
+      case (.none, .some): false
+      default: lhs.offset < rhs.offset
+      }
+    }
+    return sorted.enumerated().map { position, entry in
+      ParityCheckRecord(
+        id: position,
+        date: entry.date,
+        durationSeconds: entry.row.duration,
+        speed: entry.row.speed,
+        state: ParityCheckState(rawValue: entry.row.status.rawValue),
+        errors: entry.row.errors
+      )
+    }
+  }
+
+  /// Unraid writes the Unix epoch for a history line it could not date. That
+  /// is "unknown", not a check that ran in 1970.
+  private static func historyDate(_ timestamp: String?) -> Date? {
+    guard let timestamp, let date = Formatters.parseTimestamp(timestamp),
+          date.timeIntervalSince1970 > 0
+    else { return nil }
+    return date
   }
 }

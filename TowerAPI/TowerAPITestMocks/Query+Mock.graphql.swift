@@ -17,6 +17,7 @@ nonisolated public final class Query: MockObject {
     @Field<[LogFile]>("logFiles") public var logFiles
     @Field<Metrics>("metrics") public var metrics
     @Field<Notifications>("notifications") public var notifications
+    @Field<[ParityCheck]>("parityHistory") public var parityHistory
     @Field<[Share]>("shares") public var shares
     @Field<Vms>("vms") public var vms
   }
@@ -31,6 +32,7 @@ public extension Mock where O == Query {
     logFiles: [Mock<LogFile>] = [],
     metrics: Mock<Metrics> = Mock<Metrics>(),
     notifications: Mock<Notifications> = Mock<Notifications>(),
+    parityHistory: [Mock<ParityCheck>] = [],
     shares: [Mock<Share>] = [],
     vms: Mock<Vms>? = nil
   ) {
@@ -42,6 +44,7 @@ public extension Mock where O == Query {
     _setList(logFiles, for: \.logFiles)
     _setEntity(metrics, for: \.metrics)
     _setEntity(notifications, for: \.notifications)
+    _setList(parityHistory, for: \.parityHistory)
     _setList(shares, for: \.shares)
     _setEntity(vms, for: \.vms)
   }

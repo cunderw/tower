@@ -55,7 +55,13 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
     /// `Task.sleep` is cancellation-aware, so `cancelLoad()` reaches it exactly
     /// as a real request's cancellation would.
     case hangs
+    /// A normal dashboard whose four parity actions all fail with a GraphQL
+    /// error, so `ParityCheckUITests` can see the server's message on screen.
+    case parityActionFails
   }
+
+  /// The message every parity action throws under `.parityActionFails`.
+  static let parityActionFailureMessage = "Parity check could not be changed while the array is busy"
 
   let outcome: Outcome
   /// Boxed reference, not a stored `var`: `FakeSystemRepository` is a value
@@ -66,10 +72,14 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
   /// shared, mutable counter across those calls despite the struct's own
   /// storage being immutable.
   private let attempts = Attempts()
+  /// The parity check the four parity actions change, boxed for the same
+  /// reason as `attempts`. It starts as the fixture's running check, so every
+  /// class that asserts on the progress row still sees it.
+  private let parity = FakeParityCheck()
 
   func testConnection() async throws -> Bool {
     switch outcome {
-    case .success, .failFirstThenRecover, .unknownMetrics, .diskTempOscillates, .hangs:
+    case .success, .failFirstThenRecover, .unknownMetrics, .diskTempOscillates, .hangs, .parityActionFails:
       return true
     case .failure(let error): throw error
     }
@@ -77,8 +87,8 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
 
   func dashboard() async throws -> DashboardSnapshot {
     switch outcome {
-    case .success:
-      return .uitestFixture
+    case .success, .parityActionFails:
+      return DashboardSnapshot.uitestFixture.with(parity: parity.status)
     case .unknownMetrics:
       return .uitestFixtureWithUnknownMetrics
     case .failure(let error):
@@ -95,6 +105,86 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
       // loop — the point is for `cancelLoad()` to actually reach it.
       try await Task.sleep(for: .seconds(3_600))
       return .uitestFixture
+    }
+  }
+
+  func startParityCheck(correct: Bool) async throws {
+    try failIfParityActionsFail()
+    parity.start(correct: correct)
+  }
+
+  func pauseParityCheck() async throws {
+    try failIfParityActionsFail()
+    parity.setState(.paused)
+  }
+
+  func resumeParityCheck() async throws {
+    try failIfParityActionsFail()
+    parity.setState(.running)
+  }
+
+  func cancelParityCheck() async throws {
+    try failIfParityActionsFail()
+    parity.cancel()
+  }
+
+  func parityHistory() async throws -> [ParityCheckRecord] {
+    parity.history
+  }
+
+  private func failIfParityActionsFail() throws {
+    guard case .parityActionFails = outcome else { return }
+    throw AppError.graphQL([Self.parityActionFailureMessage])
+  }
+}
+
+/// `FakeSystemRepository`'s parity check: the status the dashboard reports
+/// and the history the Parity screen lists. A cancelled check adds a history
+/// row, as it does on a real server.
+private final class FakeParityCheck: @unchecked Sendable {
+  private let lock = NSLock()
+  private var current = DashboardSnapshot.uitestFixture.parity
+  private var records: [ParityCheckRecord] = UITestFixtures.parityHistory
+
+  var status: ParityStatus { lock.withLock { current } }
+  var history: [ParityCheckRecord] { lock.withLock { records } }
+
+  func start(correct: Bool) {
+    lock.withLock {
+      current = ParityStatus(
+        state: .running, progressPercent: 0, errors: nil, speed: nil,
+        lastRunTimestamp: nil, durationSeconds: nil, correcting: correct
+      )
+    }
+  }
+
+  func setState(_ state: ParityCheckState) {
+    lock.withLock {
+      current = ParityStatus(
+        state: state, progressPercent: current.progressPercent, errors: current.errors,
+        speed: current.speed, lastRunTimestamp: current.lastRunTimestamp,
+        durationSeconds: current.durationSeconds, correcting: current.correcting
+      )
+    }
+  }
+
+  func cancel() {
+    lock.withLock {
+      let now = Date()
+      current = ParityStatus(
+        state: .cancelled, progressPercent: nil, errors: 0, speed: nil,
+        lastRunTimestamp: now.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true)),
+        durationSeconds: 3_600, correcting: false
+      )
+      let cancelled = ParityCheckRecord(
+        id: 0, date: now, durationSeconds: 3_600, speed: "120.4 MB/s", state: .cancelled, errors: 0
+      )
+      records = ([cancelled] + records).enumerated().map { index, record in
+        ParityCheckRecord(
+          id: index, date: record.date, durationSeconds: record.durationSeconds,
+          speed: record.speed, state: record.state, errors: record.errors
+        )
+      }
     }
   }
 }
@@ -710,6 +800,31 @@ enum UITestFixtures {
     url: URL(string: "http://uitest.invalid")!,
     apiKey: "uitest"
   )
+
+  /// The Parity screen's history, newest first. One row of each shape the
+  /// screen renders differently: clean, with errors, cancelled, and one with no
+  /// speed or error count, as the live server sends for a line it cannot read.
+  static let parityHistory: [ParityCheckRecord] = {
+    let day: TimeInterval = 86_400
+    let now = Date()
+    return [
+      ParityCheckRecord(
+        id: 0, date: now.addingTimeInterval(-21 * day), durationSeconds: 90_128,
+        speed: "133.1 MB/s", state: .completed, errors: 0
+      ),
+      ParityCheckRecord(
+        id: 1, date: now.addingTimeInterval(-52 * day), durationSeconds: 111_037,
+        speed: "108.1 MB/s", state: .completed, errors: 12
+      ),
+      ParityCheckRecord(
+        id: 2, date: now.addingTimeInterval(-83 * day), durationSeconds: 39_571,
+        speed: "Unavailable", state: .cancelled, errors: 0
+      ),
+      ParityCheckRecord(
+        id: 3, date: nil, durationSeconds: 0, speed: "nan B/s", state: .completed, errors: nil
+      ),
+    ]
+  }()
 }
 
 extension ArrayStatus {
@@ -849,6 +964,11 @@ extension DashboardSnapshot {
     parity: uitestFixture.parity,
     services: uitestFixture.services
   )
+
+  /// The same snapshot with another parity status.
+  fileprivate func with(parity: ParityStatus) -> DashboardSnapshot {
+    DashboardSnapshot(array: array, parity: parity, services: services)
+  }
 }
 // MARK: - Services
 

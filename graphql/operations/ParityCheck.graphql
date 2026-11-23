@@ -1,0 +1,25 @@
+# Parity check controls and history (issue #22).
+#
+# All four `ParityCheckMutations` actions return `JSON!`, an untyped payload
+# the schema itself calls "WIP, response types and functionality will change".
+# Tower reads nothing from it: a mutation that returns without a GraphQL error
+# succeeded, and the store re-fetches `Dashboard` for the new state. The
+# `JSON` scalar accepts any JSON value for that reason (see
+# `TowerAPI/Sources/Schema/CustomScalars/JSON.swift`).
+mutation StartParityCheck($correct: Boolean!) { parityCheck { start(correct: $correct) } }
+mutation PauseParityCheck  { parityCheck { pause } }
+mutation ResumeParityCheck { parityCheck { resume } }
+mutation CancelParityCheck { parityCheck { cancel } }
+
+# Every field the history list shows. `progress`, `correcting`, `paused` and
+# `running` describe a check in flight and arrive null on a history row, so
+# they are not selected.
+query ParityHistory {
+  parityHistory {
+    date
+    duration
+    speed
+    status
+    errors
+  }
+}

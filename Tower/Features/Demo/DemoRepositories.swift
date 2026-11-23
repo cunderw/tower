@@ -42,6 +42,31 @@ struct DemoSystemRepository: SystemRepositoryProtocol {
     await DemoLatency.read()
     return server.dashboard()
   }
+
+  func startParityCheck(correct: Bool) async throws {
+    await DemoLatency.write()
+    server.startParityCheck(correct: correct)
+  }
+
+  func pauseParityCheck() async throws {
+    await DemoLatency.write()
+    server.setParityState(.paused)
+  }
+
+  func resumeParityCheck() async throws {
+    await DemoLatency.write()
+    server.setParityState(.running)
+  }
+
+  func cancelParityCheck() async throws {
+    await DemoLatency.write()
+    server.cancelParityCheck()
+  }
+
+  func parityHistory() async throws -> [ParityCheckRecord] {
+    await DemoLatency.read()
+    return server.currentParityHistory()
+  }
 }
 
 struct DemoDockerRepository: DockerRepositoryProtocol {

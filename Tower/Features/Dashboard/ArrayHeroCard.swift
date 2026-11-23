@@ -5,6 +5,10 @@ import TowerCore
 /// parity check status. The single most-looked-at surface in the app.
 struct ArrayHeroCard: View {
   let snapshot: DashboardSnapshot
+  /// Disables the parity controls while an action is in flight.
+  var parityActionInFlight: ParityAction?
+  /// Runs a parity action; the `Bool` is Start's correct-errors choice.
+  var onParityAction: (ParityAction, Bool) -> Void = { _, _ in }
 
   // At the largest accessibility text sizes the capacity ring (itself
   // `@ScaledMetric`, see `CapacityRing`) grows large enough that it and the
@@ -27,6 +31,7 @@ struct ArrayHeroCard: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
+        parityFooter
       }
     } accessory: {
       statusPill
@@ -125,8 +130,10 @@ struct ArrayHeroCard: View {
       // unknown-reads-as-zero hazard the capacity ring and the errors
       // clause elsewhere in this file already guard against.
       ProgressView(value: parity.progressFraction ?? 0) {
-        Text("Parity check · \(parityPercentText)\(speedSuffix)")
+        Text("\(parityProgressTitle) · \(parityPercentText)\(speedSuffix)")
       }
+      // Grey while paused, so the bar does not read as a check in motion.
+      .tint(parity.state == .paused ? Color.secondary : Color.accentColor)
       if parity.correcting {
         Text("Correcting")
           .font(.caption)
@@ -134,6 +141,35 @@ struct ArrayHeroCard: View {
       }
     }
     .accessibilityIdentifier("array.parityProgress")
+  }
+
+  /// The parity controls and the way into the Parity screen. Outside
+  /// `parityProgressSection`, whose identifier would overwrite the buttons'.
+  private var parityFooter: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      let actions = snapshot.availableParityActions
+      if !actions.isEmpty {
+        ParityControls(actions: actions, actionInFlight: parityActionInFlight, perform: onParityAction)
+      }
+      NavigationLink(value: ParityRoute()) {
+        HStack {
+          Label("Parity History", systemImage: "clock.arrow.circlepath")
+          Spacer()
+          Image(systemName: "chevron.forward")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityIdentifier("parity.history.link")
+    }
+  }
+
+  /// "Parity check paused" while paused: the buttons alone would leave the
+  /// progress line reading as a running check.
+  private var parityProgressTitle: String {
+    parity.state == .paused ? "Parity check paused" : "Parity check"
   }
 
   private var parityPercentText: String {
@@ -147,8 +183,11 @@ struct ArrayHeroCard: View {
   /// "not a genuine reading," not "0 MB/s mid-check," so it's filtered out
   /// here exactly like a nil value would be — this section only ever renders
   /// while `parity.isActive` in the first place.
+  /// A paused check shows no speed either.
   private var speedSuffix: String {
-    guard let speed = parity.speed, !speed.isEmpty, speed != "0" else { return "" }
+    // A paused check is not moving, whatever speed it last reported.
+    guard parity.state != .paused,
+          let speed = parity.speed, !speed.isEmpty, speed != "0" else { return "" }
     return " · \(speed)"
   }
 
