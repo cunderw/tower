@@ -66,6 +66,8 @@ struct ParityCheckView: View {
             if action == .cancel { await history.refresh() }
           }
         }
+        // An array start or stop changes what any parity action can do.
+        .disabled(store.arrayActionInFlight != nil)
       }
     }
   }

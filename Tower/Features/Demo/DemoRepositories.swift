@@ -71,6 +71,12 @@ struct DemoSystemRepository: SystemRepositoryProtocol {
     await DemoLatency.read()
     return server.currentParityHistory()
   }
+
+  /// The demo array is not encrypted, so `passphrase` is always `nil` here.
+  func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String? {
+    await DemoLatency.write()
+    return server.setArrayState(action)
+  }
 }
 
 /// The demo's live metrics: one reading of each metric per second, from a

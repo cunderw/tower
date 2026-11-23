@@ -32,6 +32,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
   nonisolated(unsafe) private static var responses: [URL: Data] = [:]
   nonisolated(unsafe) private static var operationResponses: [OperationKey: Data] = [:]
   nonisolated(unsafe) private static var recordedOperationNames: [URL: [String]] = [:]
+  nonisolated(unsafe) private static var recordedVariables: [URL: [[String: Any]]] = [:]
   nonisolated(unsafe) private static var unansweredOperations: Set<OperationKey> = []
 
   /// A configuration that routes every request through this stub. Pass it to
@@ -73,6 +74,14 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     return recordedOperationNames[url] ?? []
   }
 
+  /// The `variables` object of every request received at `url`, in arrival
+  /// order. A request with none records as an empty dictionary.
+  static func variables(url: URL) -> [[String: Any]] {
+    lock.lock()
+    defer { lock.unlock() }
+    return recordedVariables[url] ?? []
+  }
+
   override class func canInit(with request: URLRequest) -> Bool {
     guard let url = request.url else { return false }
     lock.lock()
@@ -87,11 +96,12 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
   override func startLoading() {
     guard let url = request.url else { return }
     // Read once: a body that arrives as `httpBodyStream` cannot be read twice.
-    let operationName = request.recordedBody
+    let json = request.recordedBody
       .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-      .flatMap { $0["operationName"] as? String }
+    let operationName = json.flatMap { $0["operationName"] as? String }
     StubURLProtocol.lock.lock()
     StubURLProtocol.recordedOperationNames[url, default: []].append(operationName ?? "")
+    StubURLProtocol.recordedVariables[url, default: []].append(json?["variables"] as? [String: Any] ?? [:])
     let isUnanswered = operationName.map {
       StubURLProtocol.unansweredOperations.contains(OperationKey(url: url, operationName: $0))
     } ?? false

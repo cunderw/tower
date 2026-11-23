@@ -120,9 +120,10 @@ private struct StubRepository: SystemRepositoryProtocol {
   func resumeParityCheck() async throws { unreachable() }
   func cancelParityCheck() async throws { unreachable() }
   func parityHistory() async throws -> [ParityCheckRecord] { unreachable() }
+  func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String? { unreachable() }
 
   private func unreachable() -> Never {
-    preconditionFailure("SignOutTests never triggers a parity action")
+    preconditionFailure("SignOutTests never triggers a parity or array action")
   }
 }
 

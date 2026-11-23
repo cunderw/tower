@@ -23,6 +23,7 @@ nonisolated public enum SchemaMetadata: ApolloAPI.SchemaMetadata {
     "ApiKeyFormSettings": TowerAPI.Objects.ApiKeyFormSettings,
     "ArrayCapacity": TowerAPI.Objects.ArrayCapacity,
     "ArrayDisk": TowerAPI.Objects.ArrayDisk,
+    "ArrayMutations": TowerAPI.Objects.ArrayMutations,
     "Capacity": TowerAPI.Objects.Capacity,
     "Config": TowerAPI.Objects.Config,
     "Connect": TowerAPI.Objects.Connect,

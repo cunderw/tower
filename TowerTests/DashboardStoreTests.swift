@@ -150,6 +150,237 @@ struct DashboardStoreTests {
   }
 }
 
+// MARK: - Array actions (issue #25)
+
+// A time limit, because these tests park the store on gates: a regression
+// there hangs rather than fails.
+@MainActor
+@Suite(.timeLimit(.minutes(1)))
+struct DashboardArrayActionTests {
+  private let started = DashboardSnapshot.fixture(state: "STARTED")
+  private let stopped = DashboardSnapshot.fixture(state: "STOPPED")
+
+  /// No real time: every re-fetch follows the last at once.
+  private func makeStore(_ repository: GatedDashboardRepository, attempts: Int = 30) -> DashboardStore {
+    DashboardStore(
+      repository: repository, metrics: ScriptedMetricsStream(),
+      arrayPollInterval: .zero, arrayPollAttempts: attempts
+    )
+  }
+
+  @Test func anAnswerWithTheNewStateRefetchesOnce() async {
+    let repository = GatedDashboardRepository(dashboardResults: [.success(stopped)], arrayResults: [.success("STOPPED")])
+    await repository.gate.releaseAll()
+    let store = makeStore(repository)
+    store.state = .loaded(started)
+
+    await store.perform(.stop, passphrase: nil)
+
+    #expect(repository.calls == ["setArrayState(stop, passphrase: false)", "dashboard"])
+    #expect(store.state == .loaded(stopped))
+    #expect(store.arrayActionInFlight == nil)
+  }
+
+  @Test func thePassphraseGoesIntoTheRequestAndNowhereElse() async {
+    let started = DashboardSnapshot.fixture(state: "STARTED")
+    let repository = GatedDashboardRepository(dashboardResults: [.success(started)], arrayResults: [.success("STARTED")])
+    let store = makeStore(repository)
+    store.state = .loaded(stopped)
+
+    let start = Task { await store.perform(.start, passphrase: "hunter2-secret") }
+    await repository.gate.waitUntilEntered(atLeast: 1)
+    #expect(store.arrayActionInFlight == .start)
+    #expect(!String(describing: store.arrayActionInFlight).contains("hunter2"))
+    await repository.gate.releaseAll()
+    await start.value
+
+    #expect(repository.passphrases == ["hunter2-secret"])
+    #expect(store.state == .loaded(started))
+    #expect(!String(describing: store.state).contains("hunter2"))
+  }
+
+  /// Unraid can answer before the change is done.
+  @Test func anAnswerWithTheOldStatePollsUntilTheArrayChanges() async {
+    let repository = GatedDashboardRepository(
+      dashboardResults: [.success(started), .failure(.serverUnreachable), .success(stopped)],
+      arrayResults: [.success("STARTED")]
+    )
+    await repository.gate.releaseAll()
+    let store = makeStore(repository)
+    store.state = .loaded(started)
+
+    await store.perform(.stop, passphrase: nil)
+
+    #expect(repository.calls == ["setArrayState(stop, passphrase: false)", "dashboard", "dashboard", "dashboard"])
+    #expect(store.state == .loaded(stopped), "a failed re-fetch must not end the wait")
+    #expect(store.arrayActionInFlight == nil)
+  }
+
+  /// A request that times out reached the server. Poll, do not fail.
+  @Test func aTimedOutRequestPollsToo() async {
+    let repository = GatedDashboardRepository(
+      dashboardResults: [.success(stopped), .success(started)], arrayResults: [.success(nil)]
+    )
+    await repository.gate.releaseAll()
+    let store = makeStore(repository)
+    store.state = .loaded(stopped)
+
+    await store.perform(.start, passphrase: nil)
+
+    #expect(store.state == .loaded(started))
+    #expect(store.state.error == nil)
+  }
+
+  @Test func theControlsStayDisabledForTheWholeWait() async {
+    let repository = GatedDashboardRepository(
+      dashboardResults: [.success(started), .success(stopped)], arrayResults: [.success("STARTED")]
+    )
+    let store = makeStore(repository)
+    store.state = .loaded(started)
+    let stop = Task { await store.perform(.stop, passphrase: nil) }
+
+    await repository.gate.release(0)
+    await repository.gate.waitUntilEntered(atLeast: 2)
+    #expect(store.arrayActionInFlight == .stop, "the in-flight action ended before the array stopped")
+    #expect(store.isActionInFlight)
+
+    await repository.gate.releaseAll()
+    await stop.value
+    #expect(store.arrayActionInFlight == nil)
+  }
+
+  @Test func anEncryptedStartThatLeavesTheArrayStoppedSaysThePassphraseMayBeWrong() async {
+    let repository = GatedDashboardRepository(
+      dashboardResults: [.success(stopped), .success(stopped), .success(stopped)],
+      arrayResults: [.success("STOPPED")]
+    )
+    await repository.gate.releaseAll()
+    let store = makeStore(repository, attempts: 3)
+    store.state = .loaded(stopped)
+
+    await store.perform(.start, passphrase: "wrong")
+
+    #expect(repository.calls.filter { $0 == "dashboard" }.count == 3)
+    #expect(store.state.value == stopped)
+    #expect(store.state.error?.message == "The array did not start. The passphrase may be wrong.")
+    #expect(store.arrayActionInFlight == nil)
+  }
+
+  @Test func aPlainStartThatNeverStartsSaysItHasNotStartedYet() async {
+    let repository = GatedDashboardRepository(
+      dashboardResults: [.success(stopped), .success(stopped)], arrayResults: [.success("STOPPED")]
+    )
+    await repository.gate.releaseAll()
+    let store = makeStore(repository, attempts: 2)
+    store.state = .loaded(stopped)
+
+    await store.perform(.start, passphrase: nil)
+
+    #expect(store.state.error == .stillRunning("The array has not started yet. Pull to refresh to check again."))
+  }
+
+  /// The wait ends on the newest snapshot, not the one from before the action.
+  @Test func aWaitThatEndsShowsTheNewestStateUnderTheError() async {
+    let changed = DashboardSnapshot.fixture(state: "STARTED", parity: .completed)
+    let repository = GatedDashboardRepository(
+      dashboardResults: [.success(changed)], arrayResults: [.success("STARTED")]
+    )
+    await repository.gate.releaseAll()
+    let store = makeStore(repository, attempts: 1)
+    store.state = .loaded(started)
+
+    await store.perform(.stop, passphrase: nil)
+
+    #expect(store.state.value == changed)
+    #expect(store.state.error == .stillRunning("The array has not stopped yet. Pull to refresh to check again."))
+  }
+
+  @Test func aServerErrorShowsItsMessageAndKeepsTheDashboard() async {
+    let repository = GatedDashboardRepository(
+      dashboardResults: [], arrayResults: [.failure(.graphQL(["Array state is still being updated"]))]
+    )
+    await repository.gate.releaseAll()
+    let store = makeStore(repository)
+    store.state = .loaded(started)
+
+    await store.perform(.stop, passphrase: nil)
+
+    #expect(store.state.value == started)
+    #expect(store.state.error?.message == "Array state is still being updated")
+    #expect(repository.calls == ["setArrayState(stop, passphrase: false)"], "a failed action must not re-fetch")
+    #expect(store.arrayActionInFlight == nil)
+  }
+
+  @Test func aFailedRefetchAfterTheNewStateSaysTheActionSucceeded() async {
+    let repository = GatedDashboardRepository(
+      dashboardResults: [.failure(.serverUnreachable)], arrayResults: [.success("STOPPED")]
+    )
+    await repository.gate.releaseAll()
+    let store = makeStore(repository)
+    store.state = .loaded(started)
+
+    await store.perform(.stop, passphrase: nil)
+
+    let message = store.state.error?.message ?? ""
+    #expect(message.hasPrefix("Stop Array succeeded, but Tower couldn't refresh the array status."), "\(message)")
+  }
+
+  @Test func noSecondActionOfEitherKindWhileAnArrayActionRuns() async {
+    let repository = GatedDashboardRepository(dashboardResults: [.success(stopped)], arrayResults: [.success("STOPPED")])
+    let store = makeStore(repository)
+    store.state = .loaded(started)
+
+    let stop = Task { await store.perform(.stop, passphrase: nil) }
+    await repository.gate.waitUntilEntered(atLeast: 1)
+    await store.perform(.stop, passphrase: nil)
+    await store.perform(.start, passphrase: nil)
+    await store.perform(.pause, correct: false)
+    #expect(repository.calls == ["setArrayState(stop, passphrase: false)"])
+
+    await repository.gate.releaseAll()
+    await stop.value
+    #expect(repository.calls == ["setArrayState(stop, passphrase: false)", "dashboard"])
+  }
+
+  @Test func noArrayActionWhileAParityActionRuns() async {
+    let running = DashboardSnapshot.fixture(state: "STARTED", parity: .running)
+    let repository = GatedDashboardRepository(dashboardResults: [.success(running)])
+    let store = makeStore(repository)
+    store.state = .loaded(running)
+
+    let pause = Task { await store.perform(.pause, correct: false) }
+    await repository.gate.waitUntilEntered(atLeast: 1)
+    #expect(store.isActionInFlight)
+    await store.perform(.stop, passphrase: nil)
+    #expect(repository.calls == ["pause"])
+
+    await repository.gate.releaseAll()
+    await pause.value
+  }
+
+  @Test func aPollIssuedBeforeAnArrayActionDoesNotRevertIt() async {
+    let repository = GatedDashboardRepository(
+      dashboardResults: [.success(started), .success(stopped)], arrayResults: [.success("STOPPED")]
+    )
+    let store = makeStore(repository)
+    store.state = .loaded(started)
+
+    let poll = Task { await store.refresh() }
+    await repository.gate.waitUntilEntered(atLeast: 1)
+    let stop = Task { await store.perform(.stop, passphrase: nil) }
+    await repository.gate.waitUntilEntered(atLeast: 2)
+    await repository.gate.release(1)
+    await repository.gate.release(2)
+    await stop.value
+    #expect(store.state.value?.array.state == "STOPPED")
+
+    await repository.gate.release(0)
+    await poll.value
+
+    #expect(store.state.value?.array.state == "STOPPED", "a poll issued before the action must not revert it")
+  }
+}
+
 // MARK: - Live metrics (issue #24)
 
 // A time limit, because these tests park the store on gates: a regression
@@ -474,9 +705,10 @@ private final class StubDashboardRepository: SystemRepositoryProtocol, @unchecke
   func resumeParityCheck() async throws { unreachable() }
   func cancelParityCheck() async throws { unreachable() }
   func parityHistory() async throws -> [ParityCheckRecord] { unreachable() }
+  func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String? { unreachable() }
 
   private func unreachable() -> Never {
-    preconditionFailure("the load and refresh tests never trigger parity")
+    preconditionFailure("the load and refresh tests never trigger parity or array actions")
   }
 }
 
@@ -492,17 +724,24 @@ private final class GatedDashboardRepository: SystemRepositoryProtocol, @uncheck
   private var dashboardResults: [Result<DashboardSnapshot>]
   private var historyResults: [Result<[ParityCheckRecord]>]
   private let actionResult: Result<Void>
+  private var arrayResults: [Result<String?>]
   private var _calls: [String] = []
+  private var _passphrases: [String] = []
   var calls: [String] { lock.withLock { _calls } }
+  /// Every passphrase `setArrayState` received. `calls` records only whether
+  /// one was sent.
+  var passphrases: [String] { lock.withLock { _passphrases } }
 
   init(
     dashboardResults: [Result<DashboardSnapshot>],
     history: [Result<[ParityCheckRecord]>] = [],
-    actionResult: Result<Void> = .success(())
+    actionResult: Result<Void> = .success(()),
+    arrayResults: [Result<String?>] = []
   ) {
     self.dashboardResults = dashboardResults
     self.historyResults = history
     self.actionResult = actionResult
+    self.arrayResults = arrayResults
   }
 
   func testConnection() async throws -> Bool { true }
@@ -528,6 +767,19 @@ private final class GatedDashboardRepository: SystemRepositoryProtocol, @uncheck
     let result = lock.withLock { historyResults.removeFirst() }
     switch result {
     case .success(let records): return records
+    case .failure(let error): throw error
+    }
+  }
+
+  func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String? {
+    let result = lock.withLock {
+      _calls.append("setArrayState(\(action), passphrase: \(passphrase != nil))")
+      if let passphrase { _passphrases.append(passphrase) }
+      return arrayResults.removeFirst()
+    }
+    _ = await gate.enter()
+    switch result {
+    case .success(let state): return state
     case .failure(let error): throw error
     }
   }
