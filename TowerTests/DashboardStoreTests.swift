@@ -317,6 +317,84 @@ struct DashboardLiveMetricsTests {
     await streaming.value
   }
 
+  // The poll has no temperature to fall back to. Removing the row on every
+  // stale expiry or dropped stream made every card below it jump, so the last
+  // reading stays for the session.
+  @Test func theTemperatureOutlivesItsExpiryAndItsStream() async {
+    let temperatureClock = Gate()
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(
+      repository: StubDashboardRepository(results: []), metrics: metrics,
+      staleAfter: [.cpu: .seconds(1), .memory: .seconds(2), .cpuTemperature: .seconds(3)],
+      sleep: { delay in
+        if delay == .seconds(3) { await temperatureClock.enter() } else { try await Task.sleep(for: .seconds(3_600)) }
+      }
+    )
+    let streaming = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpu(percent: 47))
+    metrics.continuation(0).yield(.cpuTemperature(celsius52))
+    await temperatureClock.waitUntilEntered(atLeast: 1)
+
+    await temperatureClock.release(0)
+    await settle { store.liveMetrics.cpuTemperature == nil }
+    #expect(store.liveMetrics.cpuTemperature == nil)
+    #expect(store.cpuTemperature == celsius52, "a stale expiry removed the temperature row")
+
+    metrics.continuation(0).finish(throwing: AppError.serverUnreachable)
+    await streaming.value
+    #expect(store.liveMetrics.cpuPercent == nil)
+    #expect(store.cpuTemperature == celsius52, "a failed stream removed the temperature row")
+  }
+
+  @Test func aServerWithNoCpuSensorHidesTheTemperature() async {
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(repository: StubDashboardRepository(results: []), metrics: metrics)
+    let streaming = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpuTemperature(celsius52))
+    await settle { store.cpuTemperature != nil }
+    #expect(store.cpuTemperature == celsius52)
+
+    metrics.continuation(0).yield(.cpuTemperature(nil))
+    await settle { store.cpuTemperature == nil }
+    #expect(store.cpuTemperature == nil)
+    streaming.cancel()
+    await streaming.value
+  }
+
+  // One dropped socket must not leave the dashboard on polling for the rest
+  // of the visit: the next stream starts one poll interval later.
+  @Test func anEndedStreamRestartsAfterOnePollInterval() async {
+    let retryClock = Gate()
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(
+      repository: StubDashboardRepository(results: []), metrics: metrics,
+      retryAfter: .seconds(30),
+      sleep: { delay in
+        if delay == .seconds(30) { await retryClock.enter() } else { try await Task.sleep(for: .seconds(3_600)) }
+      }
+    )
+    let streaming = Task { await store.keepStreamingLiveMetrics() }
+    await metrics.waitForCall(0)
+
+    metrics.continuation(0).finish(throwing: AppError.serverUnreachable)
+    await retryClock.waitUntilEntered(atLeast: 1)
+    #expect(metrics.callCount == 1, "the stream restarted before the poll interval passed")
+
+    await retryClock.release(0)
+    await metrics.waitForCall(1)
+    metrics.continuation(1).yield(.cpu(percent: 47))
+    await settle { store.liveMetrics.cpuPercent != nil }
+    #expect(store.liveMetrics.cpuPercent == 47)
+
+    // Leaving the dashboard cancels the loop inside a stream. It must stop
+    // there, not wait out another interval.
+    streaming.cancel()
+    await streaming.value
+    #expect(metrics.callCount == 2)
+  }
+
   // A tab switch cancels one stream and starts the next together. The old
   // stream's cleanup lands second and must not wipe the new readings.
   @Test func anOldStreamsCleanupLeavesANewStreamsReadings() async {
@@ -350,6 +428,8 @@ final class ScriptedMetricsStream: MetricsStreaming, @unchecked Sendable {
     lock.withLock { continuations.append(continuation) }
     return stream
   }
+
+  var callCount: Int { lock.withLock { continuations.count } }
 
   func continuation(_ index: Int) -> Continuation {
     lock.withLock { continuations[index] }

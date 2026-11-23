@@ -7,9 +7,10 @@ import TowerCore
 /// fabricated zero.
 struct SystemMetricsCard: View {
   let system: SystemInfo?
-  /// The hottest CPU sensor from the live stream. Only the stream reads it,
-  /// so the row is absent while no stream runs and when the server reports no
-  /// CPU sensor, rather than a "—" row that would never fill in.
+  /// The last hottest-CPU-sensor reading from the live stream. Only the
+  /// stream reads it, so the row is absent until the first reading and when
+  /// the server reports no CPU sensor, rather than a "—" row that might never
+  /// fill in.
   var cpuTemperature: TemperatureReading?
 
   // `MetricGauge`'s system `Gauge` control is fixed-size even as its title

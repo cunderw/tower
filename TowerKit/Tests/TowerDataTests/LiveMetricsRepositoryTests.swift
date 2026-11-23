@@ -286,3 +286,57 @@ struct LiveMetricsRepositoryTests {
     #expect(secure.webSocketEndpoint.absoluteString == "wss://tower.example/graphql")
   }
 }
+
+// MARK: - Live server
+
+// The one check that runs Apollo's real frames over a real `URLSession`
+// against a real Unraid server. Opt-in only, in `LiveShareRepositoryTests`'
+// `LiveServerCredentials`/`.enabled(if:)` pattern, and reported as skipped
+// whenever `UNRAID_URL`/`UNRAID_API_KEY` are not set:
+// ```
+// set -a; source .env.local; set +a
+// cd TowerKit && swift test --filter LiveMetricsLiveServerTests
+// ```
+// Subscriptions only: nothing here changes the server.
+
+private enum LiveServerCredentials {
+  static var server: Server? {
+    let environment = ProcessInfo.processInfo.environment
+    guard let urlString = environment["UNRAID_URL"], let url = URL(string: urlString),
+          let apiKey = environment["UNRAID_API_KEY"], !apiKey.isEmpty
+    else { return nil }
+    return Server(name: "Live", url: url, apiKey: apiKey)
+  }
+}
+
+@Suite(.enabled(if: LiveServerCredentials.server != nil), .timeLimit(.minutes(1)))
+struct LiveMetricsLiveServerTests {
+  // Temperature arrives about 6 s after the subscribe, so this listens until
+  // each metric has sent once.
+  @Test func eachMetricArrivesFromARealServer() async throws {
+    let server = try #require(LiveServerCredentials.server)
+    let repository = LiveMetricsRepository(server: server)
+
+    var latest: [LiveMetric: LiveMetricsUpdate] = [:]
+    for try await update in repository.liveMetrics() {
+      latest[update.metric] = update
+      if latest.count == LiveMetric.allCases.count { break }
+    }
+
+    for metric in LiveMetric.allCases {
+      print("[live-metrics] \(metric): \(latest[metric].map(String.init(describing:)) ?? "none")")
+    }
+    guard case .cpu(let cpu) = latest[.cpu] else {
+      Issue.record("no CPU reading")
+      return
+    }
+    #expect((0...100).contains(cpu))
+    guard case .memory(let percent, let used, let total) = latest[.memory] else {
+      Issue.record("no memory reading")
+      return
+    }
+    #expect((0...100).contains(percent))
+    #expect(total > 0 && used <= total)
+    #expect(latest[.cpuTemperature] != nil)
+  }
+}

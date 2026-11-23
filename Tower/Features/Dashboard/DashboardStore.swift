@@ -30,6 +30,13 @@ final class DashboardStore: LoadingStore {
   /// because the array, the disks and the service counts come only from it.
   private(set) var liveMetrics = LiveMetrics()
 
+  /// The last CPU temperature the stream sent this session, which the
+  /// dashboard shows. Unlike CPU and memory, the poll has no temperature to
+  /// fall back to, so a stale expiry or a stream failure keeps this value
+  /// rather than removing the row, and the cards below do not jump. `nil`
+  /// until the first reading, and again when the server reports no CPU sensor.
+  private(set) var cpuTemperature: TemperatureReading?
+
   /// One pending expiry per metric. Each update replaces its metric's task.
   private var expiries: [LiveMetric: Task<Void, Never>] = [:]
   /// Bumped by each `streamLiveMetrics()` call; see its cleanup.
@@ -38,6 +45,7 @@ final class DashboardStore: LoadingStore {
   private let repository: any SystemRepositoryProtocol
   private let metrics: any MetricsStreaming
   private let staleAfter: [LiveMetric: Duration]
+  private let retryAfter: Duration
   private let sleep: @Sendable (Duration) async throws -> Void
 
   /// - Parameters:
@@ -46,6 +54,9 @@ final class DashboardStore: LoadingStore {
   ///     memory 2 s, temperature 5 s), so one late reading does not flicker
   ///     the polled value in, and a stream that has gone quiet without closing
   ///     does not freeze an old reading on screen.
+  ///   - retryAfter: How long `keepStreamingLiveMetrics()` waits after a
+  ///     stream ends before it starts the next one. The poll's interval, so a
+  ///     dropped socket comes back by the next poll.
   ///   - sleep: Injected, as `poll` injects it, so tests use no real time.
   init(
     repository: any SystemRepositoryProtocol,
@@ -53,11 +64,13 @@ final class DashboardStore: LoadingStore {
     staleAfter: [LiveMetric: Duration] = [
       .cpu: .seconds(3), .memory: .seconds(6), .cpuTemperature: .seconds(15),
     ],
+    retryAfter: Duration = .towerPoll,
     sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
   ) {
     self.repository = repository
     self.metrics = metrics
     self.staleAfter = staleAfter
+    self.retryAfter = retryAfter
     self.sleep = sleep
   }
 
@@ -66,20 +79,33 @@ final class DashboardStore: LoadingStore {
     snapshot.array.system?.overlaid(with: liveMetrics)
   }
 
+  /// Runs the live stream until the caller's task is cancelled. When a
+  /// stream ends or fails, the next one starts `retryAfter` later, so one
+  /// dropped socket costs at most one poll interval of live values, not the
+  /// rest of the visit.
+  func keepStreamingLiveMetrics() async {
+    while !Task.isCancelled {
+      await streamLiveMetrics()
+      // Cancellation ended that stream: the dashboard has gone, so stop here.
+      guard !Task.isCancelled else { return }
+      do { try await sleep(retryAfter) } catch { return }
+    }
+  }
+
   /// Applies live readings until the stream ends or the caller's task is
-  /// cancelled, then clears them so the polled values show again.
+  /// cancelled, then clears the CPU and memory readings so the polled values
+  /// show again. The CPU temperature stays; see `cpuTemperature`.
   ///
   /// **Silent on failure.** A stream error never reaches `state`: no red
   /// text, and no `.actionFailed`. The dashboard falls back to its poll, which
-  /// is the same number a few seconds older. Nothing restarts a failed stream
-  /// until the caller runs this again (the tab is reselected or the app
-  /// returns to the foreground).
+  /// is the same number a few seconds older.
   func streamLiveMetrics() async {
     streamGeneration += 1
     let generation = streamGeneration
     do {
       for try await update in metrics.liveMetrics() {
         liveMetrics.apply(update)
+        if case .cpuTemperature(let reading) = update { cpuTemperature = reading }
         expire(update.metric)
       }
     } catch {

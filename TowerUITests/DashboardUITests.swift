@@ -159,7 +159,8 @@ final class DashboardUITests: XCTestCase {
   }
 
   /// The acceptance criterion: on a websocket failure the dashboard falls
-  /// back to its polled values and shows no alarming message. The live value
+  /// back to its polled values and shows no alarming message. The stream
+  /// restarts only after a poll interval (30 s), well after this test ends. The live value
   /// is seen first, so a stream that never ran cannot pass this.
   func testAFailingStreamFallsBackToThePolledValuesWithoutAnError() {
     let app = launch(state: "live-metrics-fails")
@@ -172,7 +173,10 @@ final class DashboardUITests: XCTestCase {
 
     // `FakeMetricsStream.failureDelay` is 5 s; the fixture's polled CPU is 12%.
     XCTAssertTrue(waitForValue(of: cpu, containing: "12%", timeout: 10), "the CPU gauge never fell back to the polled 12%, got \"\(cpu.value ?? "")\"")
-    XCTAssertFalse(temperature.exists, "the temperature row outlived the stream")
+    // The poll has no temperature, so the last reading stays rather than the
+    // row vanishing and every card below it jumping.
+    XCTAssertTrue(temperature.exists, "the temperature row disappeared when the stream failed")
+    XCTAssertTrue(spokenText(of: temperature).contains("52°C"), "the CPU temperature row read \"\(spokenText(of: temperature))\" after the stream failed")
     XCTAssertFalse(
       app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Couldn't reach the server")).firstMatch.exists,
       "a failed live stream must not show the stream's error")
