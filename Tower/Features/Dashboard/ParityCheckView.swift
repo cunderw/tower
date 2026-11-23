@@ -53,6 +53,7 @@ struct ParityCheckView: View {
           Text(progressLine(parity))
             .font(.subheadline)
         }
+        .tint(parity.state == .paused ? Color.secondary : Color.accentColor)
         if parity.correcting {
           LabeledContent("Mode", value: "Correcting errors")
         }
@@ -132,7 +133,7 @@ struct ParityHistoryRow: View {
           .font(.subheadline)
           .foregroundStyle(statusColor)
       }
-      Text(detailText)
+      Text("\(detailPrefix)\(errorsText)")
         .font(.subheadline)
         .foregroundStyle(.secondary)
     }
@@ -145,7 +146,9 @@ struct ParityHistoryRow: View {
     return date.formatted(date: .abbreviated, time: .shortened)
   }
 
-  private var detailText: String {
+  /// Duration and speed, each left out when the server did not report it,
+  /// with the separator before the error count.
+  private var detailPrefix: String {
     var parts: [String] = []
     if let seconds = record.durationSeconds, seconds > 0 {
       parts.append(Formatters.duration(seconds: seconds))
@@ -153,13 +156,21 @@ struct ParityHistoryRow: View {
     if let speed = record.speedText {
       parts.append(speed)
     }
-    parts.append(record.errors.map { Formatters.count($0, "error") } ?? "Errors unknown")
-    return parts.joined(separator: " · ")
+    return parts.map { "\($0) · " }.joined()
+  }
+
+  /// Orange when a check found errors. The colour is on the count, not the
+  /// status: a completed check with errors still completed, and orange on
+  /// the status is what marks a cancelled one.
+  private var errorsText: Text {
+    guard let errors = record.errors else { return Text("Errors unknown") }
+    let text = Text(Formatters.count(errors, "error"))
+    return errors > 0 ? text.foregroundStyle(.orange) : text
   }
 
   private var statusColor: Color {
     switch record.state {
-    case .completed: (record.errors ?? 0) > 0 ? .orange : .secondary
+    case .completed: .secondary
     case .failed: .red
     case .cancelled: .orange
     default: .secondary

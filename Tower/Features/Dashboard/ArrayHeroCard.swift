@@ -132,6 +132,8 @@ struct ArrayHeroCard: View {
       ProgressView(value: parity.progressFraction ?? 0) {
         Text("\(parityProgressTitle) · \(parityPercentText)\(speedSuffix)")
       }
+      // Grey while paused, so the bar does not read as a check in motion.
+      .tint(parity.state == .paused ? Color.secondary : Color.accentColor)
       if parity.correcting {
         Text("Correcting")
           .font(.caption)

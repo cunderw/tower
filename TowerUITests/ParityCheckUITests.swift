@@ -137,6 +137,7 @@ final class ParityCheckUITests: XCTestCase {
 
     cancelCheck(in: app)
     XCTAssertFalse(action("pause", in: app).exists, "a cancelled check has nothing to pause")
+    try saveScreenshot(named: "parity-dashboard-idle")
 
     let start = action("start", in: app)
     XCTAssertTrue(scrollUntilHittable(start, in: app))
