@@ -243,6 +243,40 @@ private func makeDashboardRepository(
   #expect(snapshot.services.sharesTotal == 1)
 }
 
+@Test func dashboardShowsDockerUnavailableWhenTheServerNullsOnlyDocker() async throws {
+  // Issue #21: from API 4.37 `Query.docker` is nullable, so the null from a
+  // failed `containers` stops at `docker`.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-docker-null.test",
+    containers: #"""
+    {"data": {"docker": null}, "errors": [{"message": "Docker socket unavailable.", "path": ["docker", "containers"]}]}
+    """#
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.containersSummary == "Unavailable")
+  #expect(snapshot.array.state == "STARTED")
+  #expect(snapshot.services.sharesTotal == 1)
+  #expect(snapshot.services.vmsSummary == "1 of 3 running")
+}
+
+@Test func dashboardShowsVMsUnavailableWhenTheServerNullsOnlyVms() async throws {
+  // Issue #21: from API 4.37 `Query.vms` is nullable too.
+  let repository = makeDashboardRepository(
+    host: "stub-dashboard-vms-null.test",
+    vms: #"""
+    {"data": {"vms": null}, "errors": [{"message": "Failed to retrieve VMs", "path": ["vms"]}]}
+    """#
+  )
+
+  let snapshot = try await repository.dashboard()
+
+  #expect(snapshot.services.vmsSummary == "Unavailable")
+  #expect(snapshot.array.state == "STARTED")
+  #expect(snapshot.services.containersSummary == "1 of 2 running")
+}
+
 @Test func dashboardReadsAForbiddenCountsQueryAsUnavailable() async throws {
   // A key without permission for one service. The core query succeeded with
   // the same key, so the key is valid: this is a row Tower cannot read, not a

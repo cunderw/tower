@@ -78,6 +78,21 @@ private func domainJSON(id: String, name: String?, state: String) -> String {
   #expect(inventory.isUnavailable)
 }
 
+@Test func domainsReportsUnavailableWhenTheServerNullsOnlyVms() async {
+  // Issue #21: from API 4.37 `Query.vms` is nullable. A null `vms` carries no
+  // domains, so it is the "VMs Unavailable" state, not a decoding failure.
+  let repository = makeRepository(
+    host: "stub-vms-null-vms.test",
+    json: #"{"data": {"vms": null}, "errors": [{"message": "Failed to retrieve VMs", "path": ["vms"]}]}"#
+  )
+  do {
+    let inventory = try await repository.domains()
+    #expect(inventory.isUnavailable)
+  } catch {
+    Issue.record("domains() threw \(error)")
+  }
+}
+
 @Test func domainsReportsAvailableAndEmptyWhenTheServerSendsNoDomains() async throws {
   // The other direction, proven independently: a healthy server with no VMs
   // defined reports `[]`, and that must not read as "unavailable" either.

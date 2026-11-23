@@ -76,6 +76,46 @@ private func containersError(host: String, json: String) async -> AppError? {
   #expect(error == .graphQL(["Failed to read name"]))
 }
 
+// Issue #21: from Unraid API 4.37, `Query.docker` is nullable, so the null
+// from a failed `containers` stops at `docker` and the server sends
+// `data: {"docker": null}` instead of `data: null`.
+private let dockerNullResponse = #"""
+  {"data": {"docker": null}, "errors": [{"message": "Docker socket unavailable.", "path": ["docker", "containers"]}]}
+  """#
+
+/// Whatever `containers()` threw for `json`, or `nil` if it returned. Not cast
+/// to `AppError`, so a decoding error from Apollo shows up as itself.
+private func containersThrown(host: String, json: String) async -> (any Error)? {
+  do {
+    _ = try await makeStubbedRepository(host: host, json: json).containers()
+    return nil
+  } catch {
+    return error
+  }
+}
+
+@Test func containersReportsDockerUnavailableWhenTheServerNullsOnlyDocker() async {
+  let error = await containersThrown(host: "stub-docker-null-docker.test", json: dockerNullResponse)
+  #expect(error as? AppError == .serviceUnavailable("Docker"), "threw \(String(describing: error))")
+}
+
+@Test func logsReportsTheServerErrorWhenTheServerNullsOnlyDocker() async {
+  // `logs()` maps every GraphQL error through `from(graphQLErrors:)`. A null
+  // `docker` must reach that mapping, not fail in Apollo's decoding first.
+  let repository = makeStubbedRepository(
+    host: "stub-docker-logs-null-docker.test",
+    json: #"""
+    {"data": {"docker": null}, "errors": [{"message": "Docker socket unavailable.", "path": ["docker", "logs"]}]}
+    """#
+  )
+  do {
+    _ = try await repository.logs(id: "c1", tail: 5, since: nil)
+    Issue.record("expected logs() to throw")
+  } catch {
+    #expect(error as? AppError == .graphQL(["Docker socket unavailable."]), "threw \(error)")
+  }
+}
+
 private enum LiveServerCredentials {
   static var server: Server? {
     let environment = ProcessInfo.processInfo.environment
