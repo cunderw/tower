@@ -30,6 +30,41 @@ struct DemoDataTests {
     #expect(DemoData.notifications.contains { $0.kind == .unread && $0.importance == .warning })
   }
 
+  @Test func theParityHistoryIsNewestFirstAndRecent() {
+    // Dates relative to now, so the list never ages into a server that last
+    // checked parity years ago.
+    let history = DemoData.parityHistory
+    let dates = history.compactMap(\.date)
+    #expect(dates.count == history.count, "every demo row has a date")
+    #expect(dates == dates.sorted(by: >), "the history is not newest first")
+    #expect(history.map(\.id) == Array(0..<history.count))
+    let newest = try? #require(dates.first)
+    #expect((newest?.timeIntervalSinceNow ?? -.infinity) > -45 * 24 * 60 * 60, "the newest check is over 45 days old")
+    // A list of identical clean rows teaches a reviewer nothing.
+    #expect(history.contains { ($0.errors ?? 0) > 0 })
+    #expect(history.contains { $0.state == .cancelled })
+  }
+
+  @Test func theDemoParityControlsChangeTheDashboardAndTheHistory() {
+    let server = DemoServer()
+    #expect(server.dashboard().parity.state == .running)
+
+    server.setParityState(.paused)
+    #expect(server.dashboard().parity.state == .paused)
+
+    let before = server.currentParityHistory().count
+    server.cancelParityCheck()
+    #expect(server.dashboard().parity.state == .cancelled)
+    #expect(server.currentParityHistory().count == before + 1)
+    #expect(server.currentParityHistory().first?.state == .cancelled)
+    #expect(server.dashboard().availableParityActions == [.start])
+
+    server.startParityCheck(correct: false)
+    let started = server.dashboard().parity
+    #expect(started.state == .running)
+    #expect(!started.correcting)
+  }
+
   @Test func theDemoNeverNamesTheRealServer() {
     // Screenshots of Settings show the address and the last four characters of the
     // key. `192.0.2.x` is TEST-NET-1 (RFC 5737) — reserved for documentation and
