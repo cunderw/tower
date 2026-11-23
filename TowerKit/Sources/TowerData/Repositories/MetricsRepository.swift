@@ -15,11 +15,12 @@ import TowerCore
 /// about every second, memory every 2 s, and temperature every 5 s, with the
 /// first temperature about 6 s after the subscribe.
 ///
-/// **One transport per subscription.** Each of the three subscriptions gets its
-/// own `WebSocketTransport`, so a server that fails one (a box with no
-/// temperature sensors, say) does not take the other two down with it. Each
-/// transport has reconnection off and is closed when its subscription ends,
-/// so nothing keeps a socket open after the dashboard stops listening.
+/// **One transport per subscription, and they end together.** Each of the
+/// three subscriptions gets its own `WebSocketTransport`, with reconnection
+/// off. When any one of them ends or fails, the other two are cancelled and
+/// the merged stream ends, so the dashboard's retry restarts all three. A
+/// subscription left dead beside two live ones would keep its metric on the
+/// poll for the rest of the visit, with nothing to restart it.
 ///
 /// **No cache.** `.networkOnly` with `writeResultsToCache: false`: a live
 /// reading is shown once and replaced, and a monitoring client never shows a
@@ -42,10 +43,11 @@ public struct LiveMetricsRepository: MetricsStreaming {
     self.session = session
   }
 
-  /// Merges the three subscriptions into one stream. The stream ends when all
-  /// three have ended, and throws the first error any of them threw. A
-  /// subscription that ends early takes only its own metric with it.
-  /// Cancelling the stream cancels all three and closes their sockets.
+  /// Merges the three subscriptions into one stream. The first subscription to
+  /// end, cleanly or with an error, ends the stream: the other two are
+  /// cancelled, every socket is closed, and the stream finishes with that
+  /// subscription's error, if it had one. Cancelling the stream cancels all
+  /// three and closes their sockets.
   public func liveMetrics() -> AsyncThrowingStream<LiveMetricsUpdate, any Error> {
     AsyncThrowingStream { continuation in
       let task = Task {
@@ -67,11 +69,12 @@ public struct LiveMetricsRepository: MetricsStreaming {
               .cpuTemperature(Self.hottestCPUSensor(in: data.systemMetricsTemperature))
             }
           }
-          var firstError: (any Error)?
-          for await error in group where firstError == nil {
-            firstError = error
-          }
-          return firstError
+          // The first subscription to end decides; the rest are cancelled and
+          // drained, so every socket is closed before the stream finishes.
+          let firstEnd = await group.next() ?? nil
+          group.cancelAll()
+          for await _ in group {}
+          return firstEnd
         }
         continuation.finish(throwing: firstError)
       }
@@ -118,7 +121,10 @@ public struct LiveMetricsRepository: MetricsStreaming {
     } catch {
       failure = error
     }
-    // Closes the socket now, rather than whenever the transport is released.
+    // Closes the socket at this known point. Releasing the transport closes
+    // it too, in its deinit, which is why the kit tests pass with or without
+    // this call. The call keeps the close from depending on when the last
+    // reference to the transport goes.
     await transport.pause()
     return failure
   }

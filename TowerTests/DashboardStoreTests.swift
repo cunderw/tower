@@ -184,11 +184,11 @@ struct DashboardLiveMetricsTests {
     await metrics.waitForCall(0)
     metrics.continuation(0).yield(.cpu(percent: 47))
     metrics.continuation(0).yield(.cpuTemperature(celsius52))
-    await settle { store.liveMetrics.cpuTemperature != nil }
+    await settle { store.cpuTemperature != nil }
 
     #expect(store.system(for: polled)?.cpuPercent == 47)
     #expect(store.system(for: polled)?.memoryPercent == 88)
-    #expect(store.liveMetrics.cpuTemperature == celsius52)
+    #expect(store.cpuTemperature == celsius52)
     #expect(store.state == .loaded(polled))
     streaming.cancel()
     await streaming.value
@@ -273,7 +273,7 @@ struct DashboardLiveMetricsTests {
     let metrics = ScriptedMetricsStream()
     let store = DashboardStore(
       repository: StubDashboardRepository(results: []), metrics: metrics,
-      staleAfter: [.cpu: .seconds(1), .memory: .seconds(2), .cpuTemperature: .seconds(3)],
+      staleAfter: [.cpu: .seconds(1), .memory: .seconds(2)],
       sleep: { delay in
         if delay == .seconds(1) { await cpuClock.enter() } else { await memoryClock.enter() }
       }
@@ -323,30 +323,30 @@ struct DashboardLiveMetricsTests {
   // The poll has no temperature to fall back to. Removing the row on every
   // stale expiry or dropped stream made every card below it jump, so the last
   // reading stays for the session.
-  @Test func theTemperatureOutlivesItsExpiryAndItsStream() async {
-    let temperatureClock = Gate()
+  @Test func theTemperatureOutlivesTheCpuExpiryAndTheStream() async {
+    let cpuClock = Gate()
     let metrics = ScriptedMetricsStream()
     let store = DashboardStore(
       repository: StubDashboardRepository(results: []), metrics: metrics,
-      staleAfter: [.cpu: .seconds(1), .memory: .seconds(2), .cpuTemperature: .seconds(3)],
+      staleAfter: [.cpu: .seconds(1), .memory: .seconds(2)],
       sleep: { delay in
-        if delay == .seconds(3) { await temperatureClock.enter() } else { try await Task.sleep(for: .seconds(3_600)) }
+        if delay == .seconds(1) { await cpuClock.enter() } else { try await Task.sleep(for: .seconds(3_600)) }
       }
     )
     let streaming = Task { await store.streamLiveMetrics() }
     await metrics.waitForCall(0)
     metrics.continuation(0).yield(.cpu(percent: 47))
     metrics.continuation(0).yield(.cpuTemperature(celsius52))
-    await temperatureClock.waitUntilEntered(atLeast: 1)
+    await cpuClock.waitUntilEntered(atLeast: 1)
 
-    await temperatureClock.release(0)
-    await settle { store.liveMetrics.cpuTemperature == nil }
-    #expect(store.liveMetrics.cpuTemperature == nil)
-    #expect(store.cpuTemperature == celsius52, "a stale expiry removed the temperature row")
+    await cpuClock.release(0)
+    await settle { store.liveMetrics.cpuPercent == nil }
+    #expect(store.liveMetrics.cpuPercent == nil)
+    #expect(store.cpuTemperature == celsius52, "a stale CPU expiry removed the temperature row")
 
     metrics.continuation(0).finish(throwing: AppError.serverUnreachable)
     await streaming.value
-    #expect(store.liveMetrics.cpuPercent == nil)
+    #expect(store.liveMetrics.isEmpty)
     #expect(store.cpuTemperature == celsius52, "a failed stream removed the temperature row")
   }
 
@@ -438,9 +438,13 @@ final class ScriptedMetricsStream: MetricsStreaming, @unchecked Sendable {
     lock.withLock { continuations[index] }
   }
 
-  /// Yields until `liveMetrics()` has been called `index + 1` times.
+  /// Yields until `liveMetrics()` has been called `index + 1` times, or the
+  /// test is cancelled. A suite's time limit cancels the test, so a call that
+  /// never comes fails the test instead of hanging the run.
   func waitForCall(_ index: Int) async {
-    while lock.withLock({ continuations.count }) <= index { await Task.yield() }
+    while lock.withLock({ continuations.count }) <= index, !Task.isCancelled {
+      await Task.yield()
+    }
   }
 }
 

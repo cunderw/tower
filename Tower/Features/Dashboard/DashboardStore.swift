@@ -22,8 +22,7 @@ final class DashboardStore: LoadingStore {
   /// guard as `VMStore` and `DockerStore`.
   private var mutationSequence = 0
 
-  /// Live CPU, memory and CPU temperature over the polled snapshot (issue
-  /// #24). Kept apart from `state`, so a poll never overwrites a live value
+  /// Live CPU and memory over the polled snapshot (issue #24). Kept apart from `state`, so a poll never overwrites a live value
   /// and a live value never reaches `.actionFailed` or the parity guard.
   ///
   /// Empty whenever no stream runs. The 30 s poll stays on beside the stream,
@@ -49,11 +48,12 @@ final class DashboardStore: LoadingStore {
   private let sleep: @Sendable (Duration) async throws -> Void
 
   /// - Parameters:
-  ///   - staleAfter: How long a live value stays on screen with no new
-  ///     reading. About three times each metric's measured cadence (CPU 1 s,
-  ///     memory 2 s, temperature 5 s), so one late reading does not flicker
-  ///     the polled value in, and a stream that has gone quiet without closing
-  ///     does not freeze an old reading on screen.
+  ///   - staleAfter: How long a live CPU or memory value stays on screen with
+  ///     no new reading. About three times each metric's measured cadence
+  ///     (CPU 1 s, memory 2 s), so one late reading does not flicker the polled
+  ///     value in, and a stream that has gone quiet without closing does not
+  ///     freeze an old reading on screen. The CPU temperature never expires;
+  ///     see `cpuTemperature`.
   ///   - retryAfter: How long `keepStreamingLiveMetrics()` waits after a
   ///     stream ends before it starts the next one. The poll's interval, so a
   ///     dropped socket comes back by the next poll.
@@ -62,7 +62,7 @@ final class DashboardStore: LoadingStore {
     repository: any SystemRepositoryProtocol,
     metrics: any MetricsStreaming,
     staleAfter: [LiveMetric: Duration] = [
-      .cpu: .seconds(3), .memory: .seconds(6), .cpuTemperature: .seconds(15),
+      .cpu: .seconds(3), .memory: .seconds(6),
     ],
     retryAfter: Duration = .towerPoll,
     sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
@@ -104,9 +104,12 @@ final class DashboardStore: LoadingStore {
     let generation = streamGeneration
     do {
       for try await update in metrics.liveMetrics() {
-        liveMetrics.apply(update)
-        if case .cpuTemperature(let reading) = update { cpuTemperature = reading }
-        expire(update.metric)
+        if case .cpuTemperature(let reading) = update {
+          cpuTemperature = reading
+        } else {
+          liveMetrics.apply(update)
+          expire(update.metric)
+        }
       }
     } catch {
       // Deliberately ignored; see above.
@@ -122,7 +125,7 @@ final class DashboardStore: LoadingStore {
   /// Clears `metric` if no newer reading arrives within its `staleAfter`.
   private func expire(_ metric: LiveMetric) {
     expiries[metric]?.cancel()
-    let delay = staleAfter[metric] ?? .seconds(15)
+    guard let delay = staleAfter[metric] else { return }
     expiries[metric] = Task { [weak self, sleep] in
       do { try await sleep(delay) } catch { return }
       // A newer reading cancelled this expiry. A test's `sleep` may return

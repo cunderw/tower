@@ -53,9 +53,13 @@ public struct TemperatureReading: Equatable, Sendable {
   }
 }
 
-/// The live values the dashboard shows over its polled snapshot. A `nil`
-/// field means "no live value": the polled value shows instead, or for the
-/// CPU temperature, which the poll does not read, no row.
+/// The live CPU and memory values the dashboard shows over its polled
+/// snapshot. A `nil` field means "no live value", and the polled value shows
+/// instead.
+///
+/// The CPU temperature is not here. The poll has no temperature to fall back
+/// to, so the dashboard keeps the last reading itself rather than letting it
+/// expire with these.
 public struct LiveMetrics: Equatable, Sendable {
   public struct Memory: Equatable, Sendable {
     public let percent: Double
@@ -65,28 +69,30 @@ public struct LiveMetrics: Equatable, Sendable {
 
   public private(set) var cpuPercent: Double?
   public private(set) var memory: Memory?
-  public private(set) var cpuTemperature: TemperatureReading?
 
   public init() {}
 
   public var isEmpty: Bool { self == LiveMetrics() }
 
+  /// Applies a CPU or memory update. A temperature update changes nothing
+  /// here; see the type's comment.
   public mutating func apply(_ update: LiveMetricsUpdate) {
     switch update {
     case .cpu(let percent):
       cpuPercent = percent
     case .memory(let percent, let usedBytes, let totalBytes):
       memory = Memory(percent: percent, usedBytes: usedBytes, totalBytes: totalBytes)
-    case .cpuTemperature(let reading):
-      cpuTemperature = reading
+    case .cpuTemperature:
+      break
     }
   }
 
+  /// Clears a CPU or memory value. `.cpuTemperature` changes nothing here.
   public mutating func clear(_ metric: LiveMetric) {
     switch metric {
     case .cpu: cpuPercent = nil
     case .memory: memory = nil
-    case .cpuTemperature: cpuTemperature = nil
+    case .cpuTemperature: break
     }
   }
 }

@@ -61,7 +61,11 @@ actor Gate {
   /// test knows a call has actually reached the gate (not merely that its
   /// `Task` was created) before asserting in-flight state or releasing a
   /// specific index.
+  ///
+  /// Also stops when the waiting task is cancelled, which is how a suite's
+  /// `.timeLimit` ends a test: without the check, a call that never arrives
+  /// spins here until the whole run is killed.
   func waitUntilEntered(atLeast count: Int) async {
-    while enterCount < count { await Task.yield() }
+    while enterCount < count, !Task.isCancelled { await Task.yield() }
   }
 }

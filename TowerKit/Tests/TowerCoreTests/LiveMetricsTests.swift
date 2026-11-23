@@ -37,20 +37,20 @@ private let polled = SystemInfo(
 @Test func clearingAMetricRestoresItsPolledValue() {
   var live = LiveMetrics()
   live.apply(.cpu(percent: 47))
-  live.apply(.cpuTemperature(TemperatureReading(value: 52, unit: .celsius)))
+  live.apply(.memory(percent: 50, usedBytes: 1, totalBytes: 2))
   live.clear(.cpu)
   #expect(live.cpuPercent == nil)
-  #expect(live.cpuTemperature == TemperatureReading(value: 52, unit: .celsius))
+  #expect(live.memory?.percent == 50)
   #expect(polled.overlaid(with: live).cpuPercent == 12)
-  live.clear(.cpuTemperature)
+  live.clear(.memory)
   #expect(live.isEmpty)
 }
 
-@Test func aTemperatureUpdateWithNoSensorClearsTheReading() {
+// The dashboard keeps the CPU temperature itself, so it never lands here.
+@Test func aTemperatureUpdateLeavesTheOverlayAlone() {
   var live = LiveMetrics()
   live.apply(.cpuTemperature(TemperatureReading(value: 52, unit: .celsius)))
-  live.apply(.cpuTemperature(nil))
-  #expect(live.cpuTemperature == nil)
+  #expect(live.isEmpty)
 }
 
 @Test func eachUpdateNamesItsMetric() {

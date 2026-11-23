@@ -250,28 +250,40 @@ struct LiveMetricsRepositoryTests {
     #expect(session.sockets.allSatisfy { $0.socket.cancelled })
   }
 
-  // One failing subscription takes only its own metric: the other two keep
-  // sending, and the stream reports the error only once all three are done.
-  @Test func oneFailingSubscriptionDoesNotEndTheOthers() async throws {
+  // A subscription that fails beside two live ones must not leave its metric
+  // dead for the rest of the visit. It ends the whole stream, so the
+  // dashboard's retry restarts all three.
+  @Test func oneFailingSubscriptionEndsTheStreamAndClosesEverySocket() async throws {
     let session = ScriptedSession(script: [
       "LiveCpu": [graphQLError("Forbidden resource")],
-      "LiveMemory": [memory58, complete()],
-      "LiveTemperature": [temperature([sensor("CPU_CORE", 30)]), complete()],
+      // Memory and temperature send and then stay open, as live ones do.
+      "LiveMemory": [memory58],
+      "LiveTemperature": [temperature([sensor("CPU_CORE", 30)])],
     ])
     let repository = LiveMetricsRepository(server: server, session: session)
 
-    var updates: [LiveMetricsUpdate] = []
     var thrown: (any Error)?
     do {
-      for try await update in repository.liveMetrics() { updates.append(update) }
+      for try await _ in repository.liveMetrics() {}
     } catch {
       thrown = error
     }
 
-    #expect(updates.count == 2)
-    #expect(updates.contains { $0.metric == .memory })
-    #expect(updates.contains(.cpuTemperature(TemperatureReading(value: 30, unit: .celsius))))
     #expect(thrown != nil)
+    #expect(session.sockets.count == 3)
+    #expect(session.sockets.allSatisfy { $0.socket.cancelled })
+  }
+
+  // A clean `complete` from one subscription ends the stream the same way.
+  @Test func oneCompletedSubscriptionEndsTheStreamWithoutAnError() async throws {
+    let session = ScriptedSession(script: [
+      "LiveCpu": [cpu47, complete()],
+      "LiveMemory": [memory58],
+    ])
+    let repository = LiveMetricsRepository(server: server, session: session)
+
+    for try await _ in repository.liveMetrics() {}
+
     #expect(session.sockets.allSatisfy { $0.socket.cancelled })
   }
 
