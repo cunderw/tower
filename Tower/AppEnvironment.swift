@@ -6,6 +6,8 @@ import TowerData
 struct AppEnvironment {
   var serverStore: any ServerStoring
   var makeRepository: (Server) -> any SystemRepositoryProtocol
+  /// The dashboard's live CPU, memory and temperature (issue #24).
+  var makeMetricsStream: (Server) -> any MetricsStreaming
   var makeDockerRepository: (Server) -> any DockerRepositoryProtocol
   var makeVMRepository: (Server) -> any VMRepositoryProtocol
   var makeShareRepository: (Server) -> any ShareRepositoryProtocol
@@ -32,6 +34,8 @@ struct AppEnvironment {
     makeRepository: { server in
       LiveSystemRepository(provider: ApolloClientProvider(server: server))
     },
+    // Each subscription that drops retries after one poll interval.
+    makeMetricsStream: { server in LiveMetricsRepository(server: server, retryAfter: .towerPoll) },
     makeDockerRepository: { server in
       LiveDockerRepository(provider: ApolloClientProvider(server: server))
     },
@@ -87,6 +91,7 @@ struct AppEnvironment {
     return AppEnvironment(
       serverStore: InMemoryServerStore(),
       makeRepository: { _ in DemoSystemRepository(server: server) },
+      makeMetricsStream: { _ in DemoMetricsRepository() },
       makeDockerRepository: { _ in DemoDockerRepository(server: server) },
       makeVMRepository: { _ in DemoVMRepository(server: server) },
       makeShareRepository: { _ in DemoShareRepository(server: server) },

@@ -57,6 +57,18 @@ public enum Formatters {
     return "\(value)°C"
   }
 
+  /// A live sensor reading in the unit the server reports, rounded to a whole
+  /// degree. Kelvin takes a space and no degree sign, as SI writes it.
+  public static func temperature(_ reading: TemperatureReading) -> String {
+    let value = Int(reading.value.rounded())
+    switch reading.unit {
+    case .celsius: return "\(value)°C"
+    case .fahrenheit: return "\(value)°F"
+    case .kelvin: return "\(value) K"
+    case .rankine: return "\(value)°R"
+    }
+  }
+
   /// A transfer rate, for the download clients.
   ///
   /// **Zero renders as an em dash, not "Zero KB/s".** Most rows in a download

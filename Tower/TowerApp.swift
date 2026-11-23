@@ -115,12 +115,15 @@ struct TowerApp: App {
     // accessibility value is reachable from a UI test, and
     // `disk-temp-oscillates` backs `DiskDetailUITests`' liveness proof
     // that the disk detail screen reflects a store update
-    // made while it's open, and `parity-action-fails` makes every
-    // parity action fail with a server message.
+    // made while it's open, `parity-action-fails` makes every
+    // parity action fail with a server message, and `live-metrics`,
+    // `live-metrics-no-sensor` and `live-metrics-fails` select
+    // `FakeMetricsStream`'s modes over the default fixture.
     // Debug-only for the same reason as the argument above: it can
     // force a shipped app to skip authentication entirely.
     if arguments.contains("--uitest-seed-dashboard") {
       let outcome: FakeSystemRepository.Outcome
+      var metricsMode = FakeMetricsStream.Mode.silent
       switch ProcessInfo.processInfo.environment["UITEST_DASHBOARD_STATE"] {
       case "failure": outcome = .failure(.serverUnreachable)
       case "retry-succeeds": outcome = .failFirstThenRecover
@@ -128,9 +131,21 @@ struct TowerApp: App {
       case "disk-temp-oscillates": outcome = .diskTempOscillates
       case "hangs": outcome = .hangs
       case "parity-action-fails": outcome = .parityActionFails
+      // The live dashboard stream (issue #24), over the default fixture.
+      case "live-metrics":
+        outcome = .success
+        metricsMode = .live
+      case "live-metrics-no-sensor":
+        outcome = .success
+        metricsMode = .liveWithoutSensor
+      case "live-metrics-fails":
+        outcome = .success
+        metricsMode = .failsAfterDelay
       default: outcome = .success
       }
       environment.makeRepository = { _ in FakeSystemRepository(outcome: outcome) }
+      // Never the live stream: it would dial `UITestFixtures.server`.
+      environment.makeMetricsStream = { [metricsMode] _ in FakeMetricsStream(mode: metricsMode) }
       // The Docker tab is a real `DockerListView` — without this it would
       // try to reach `UITestFixtures.server`'s unreachable URL for real. Its
       // own `UITEST_DOCKER_STATE` is read inside `FakeDockerRepository

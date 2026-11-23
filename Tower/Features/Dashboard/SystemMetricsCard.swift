@@ -1,12 +1,17 @@
 import SwiftUI
 import TowerCore
 
-/// The dashboard's CPU/memory two-up, plus OS and uptime. Second most-looked-
+/// The dashboard's CPU/memory two-up, plus the CPU temperature, OS and uptime. Second most-looked-
 /// at surface after `ArrayHeroCard`, and built the same way: nil metrics
 /// render as an honest "—" via `MetricGauge`/`LabeledContent`, never as a
 /// fabricated zero.
 struct SystemMetricsCard: View {
   let system: SystemInfo?
+  /// The last hottest-CPU-sensor reading from the live stream. Only the
+  /// stream reads it, so the row is absent until the first reading and when
+  /// the server reports no CPU sensor, rather than a "—" row that might never
+  /// fill in.
+  var cpuTemperature: TemperatureReading?
 
   // `MetricGauge`'s system `Gauge` control is fixed-size even as its title
   // and detail labels grow with Dynamic Type — at accessibility sizes the
@@ -21,6 +26,10 @@ struct SystemMetricsCard: View {
         metricsRow
         Divider()
         VStack(alignment: .leading, spacing: 8) {
+          if let cpuTemperature {
+            LabeledContent("CPU Temperature", value: Formatters.temperature(cpuTemperature))
+              .accessibilityIdentifier("dashboard.cpuTemperature")
+          }
           if let osLine {
             LabeledContent("OS", value: osLine)
           }
@@ -102,7 +111,10 @@ struct SystemMetricsCard: View {
   ZStack {
     Color(.systemGroupedBackground).ignoresSafeArea()
     ScrollView {
-      SystemMetricsCard(system: .previewFixture())
+      SystemMetricsCard(
+        system: .previewFixture(),
+        cpuTemperature: TemperatureReading(value: 48, unit: .celsius)
+      )
         .padding()
     }
   }

@@ -1,0 +1,118 @@
+import Foundation
+
+/// A source of live system metrics. `TowerData` implements it over the
+/// server's GraphQL subscriptions; demo mode and the UI tests supply their own.
+///
+/// The stream ends when the consumer cancels it, or when the source gives up.
+/// A source that can recover retries inside the stream instead of ending it,
+/// as the live one does per subscription. A thrown error means only that the
+/// live values stopped: the caller falls back to the polled values and shows
+/// no error.
+public protocol MetricsStreaming: Sendable {
+  func liveMetrics() -> AsyncThrowingStream<LiveMetricsUpdate, any Error>
+}
+
+/// The three metrics a live stream carries.
+public enum LiveMetric: Hashable, Sendable, CaseIterable {
+  case cpu
+  case memory
+  case cpuTemperature
+}
+
+/// One reading of one metric. The server sends each metric on its own cadence
+/// (CPU about every second, memory every 2 s, temperature every 5 s), so an
+/// update carries one metric, never a full set.
+public enum LiveMetricsUpdate: Equatable, Sendable {
+  case cpu(percent: Double)
+  case memory(percent: Double, usedBytes: Int64, totalBytes: Int64)
+  /// `nil` when the server reports no CPU sensor.
+  case cpuTemperature(TemperatureReading?)
+
+  public var metric: LiveMetric {
+    switch self {
+    case .cpu: .cpu
+    case .memory: .memory
+    case .cpuTemperature: .cpuTemperature
+    }
+  }
+}
+
+/// A temperature in the unit the server reports. Tower does not convert it.
+public struct TemperatureReading: Equatable, Sendable {
+  public enum Unit: Equatable, Sendable {
+    case celsius
+    case fahrenheit
+    case kelvin
+    case rankine
+  }
+
+  public let value: Double
+  public let unit: Unit
+
+  public init(value: Double, unit: Unit) {
+    self.value = value
+    self.unit = unit
+  }
+}
+
+/// The live CPU and memory values the dashboard shows over its polled
+/// snapshot. A `nil` field means "no live value", and the polled value shows
+/// instead.
+///
+/// The CPU temperature is not here. The poll has no temperature to fall back
+/// to, so the dashboard keeps the last reading itself rather than letting it
+/// expire with these.
+public struct LiveMetrics: Equatable, Sendable {
+  public struct Memory: Equatable, Sendable {
+    public let percent: Double
+    public let usedBytes: Int64
+    public let totalBytes: Int64
+  }
+
+  public private(set) var cpuPercent: Double?
+  public private(set) var memory: Memory?
+
+  public init() {}
+
+  public var isEmpty: Bool { self == LiveMetrics() }
+
+  /// Applies a CPU or memory update. A temperature update changes nothing
+  /// here; see the type's comment.
+  public mutating func apply(_ update: LiveMetricsUpdate) {
+    switch update {
+    case .cpu(let percent):
+      cpuPercent = percent
+    case .memory(let percent, let usedBytes, let totalBytes):
+      memory = Memory(percent: percent, usedBytes: usedBytes, totalBytes: totalBytes)
+    case .cpuTemperature:
+      break
+    }
+  }
+
+  /// Clears a CPU or memory value. `.cpuTemperature` changes nothing here.
+  public mutating func clear(_ metric: LiveMetric) {
+    switch metric {
+    case .cpu: cpuPercent = nil
+    case .memory: memory = nil
+    case .cpuTemperature: break
+    }
+  }
+}
+
+extension SystemInfo {
+  /// This reading with each live value in place of its polled value. A field
+  /// with no live value keeps the polled value.
+  ///
+  /// Memory replaces its percent, used and total together. A live percent
+  /// beside a polled "X of Y" line would disagree with itself.
+  public func overlaid(with live: LiveMetrics) -> SystemInfo {
+    SystemInfo(
+      distro: distro, release: release, bootTimestamp: bootTimestamp,
+      cpuBrand: cpuBrand, cpuCores: cpuCores, cpuThreads: cpuThreads,
+      cpuPercent: live.cpuPercent ?? cpuPercent,
+      memoryPercent: live.memory?.percent ?? memoryPercent,
+      memoryUsedBytes: live.memory?.usedBytes ?? memoryUsedBytes,
+      memoryTotalBytes: live.memory?.totalBytes ?? memoryTotalBytes
+    )
+  }
+}

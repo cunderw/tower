@@ -73,6 +73,51 @@ struct DemoSystemRepository: SystemRepositoryProtocol {
   }
 }
 
+/// The demo's live metrics: one reading of each metric per second, from a
+/// fixed loop.
+///
+/// **It starts at the snapshot's 14% CPU and 61% memory and holds them for
+/// five seconds.** The screenshot tour photographs the dashboard about a
+/// second after it loads, so the captured gauges read what they read before
+/// the stream existed. Then the loop drifts a few points, so a reviewer sees
+/// the gauges move. Memory's used bytes follow its percent, so the "X of Y"
+/// line agrees with the gauge.
+struct DemoMetricsRepository: MetricsStreaming {
+  static let cpu: [Double] = [14, 14, 14, 14, 14, 17, 22, 19, 16, 12, 11, 13]
+  static let memory: [Double] = [61, 61, 61, 61, 61, 61, 62, 62, 62, 61, 61, 61]
+  static let cpuTemperature: [Double] = [45, 45, 45, 45, 45, 46, 48, 49, 47, 46, 45, 45]
+  static let memoryTotalBytes: Int64 = 32_000_000_000
+
+  func liveMetrics() -> AsyncThrowingStream<LiveMetricsUpdate, any Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        var tick = 0
+        repeat {
+          for update in Self.updates(at: tick) { continuation.yield(update) }
+          tick += 1
+        } while (try? await Task.sleep(for: .seconds(1))) != nil
+        continuation.finish()
+      }
+      continuation.onTermination = { _ in task.cancel() }
+    }
+  }
+
+  /// The three readings for one tick of the loop.
+  static func updates(at tick: Int) -> [LiveMetricsUpdate] {
+    let index = tick % cpu.count
+    let memoryPercent = memory[index]
+    return [
+      .cpu(percent: cpu[index]),
+      .memory(
+        percent: memoryPercent,
+        usedBytes: Int64(Double(memoryTotalBytes) * memoryPercent / 100),
+        totalBytes: memoryTotalBytes
+      ),
+      .cpuTemperature(TemperatureReading(value: cpuTemperature[index], unit: .celsius)),
+    ]
+  }
+}
+
 struct DemoDockerRepository: DockerRepositoryProtocol {
   let server: DemoServer
 

@@ -17,6 +17,7 @@ struct SignOutTests {
     let environment = AppEnvironment(
       serverStore: spy,
       makeRepository: { _ in StubRepository() },
+      makeMetricsStream: { _ in ScriptedMetricsStream() },
       makeDockerRepository: { _ in StubDockerRepository() },
       makeVMRepository: { _ in StubVMRepository() },
       makeShareRepository: { _ in StubShareRepository() },
@@ -48,6 +49,7 @@ struct SignOutTests {
     let environment = AppEnvironment(
       serverStore: spy,
       makeRepository: { _ in StubRepository() },
+      makeMetricsStream: { _ in ScriptedMetricsStream() },
       makeDockerRepository: { _ in StubDockerRepository() },
       makeVMRepository: { _ in StubVMRepository() },
       makeShareRepository: { _ in StubShareRepository() },

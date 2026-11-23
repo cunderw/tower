@@ -1,0 +1,13 @@
+# No `timestamp`: it is a `DateTime`, and ADR 0003 maps a custom scalar only
+# where the default throws. Tower reads only the value and its unit.
+subscription LiveTemperature {
+  systemMetricsTemperature {
+    sensors {
+      type
+      current {
+        value
+        unit
+      }
+    }
+  }
+}

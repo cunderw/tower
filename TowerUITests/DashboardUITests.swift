@@ -82,4 +82,105 @@ final class DashboardUITests: XCTestCase {
     XCTAssertTrue(ring.waitForExistence(timeout: 5), "tapping Try Again never recovered the dashboard to its loaded state")
     XCTAssertFalse(message.exists, "dashboard.error still showing after a successful retry")
   }
+
+  // MARK: - Live metrics (issue #24)
+
+  /// Waits for `element`'s accessibility value to contain `text`. Returns
+  /// false at the deadline, and every caller asserts the result.
+  private func waitForValue(
+    of element: XCUIElement, containing text: String, timeout: TimeInterval = 5
+  ) -> Bool {
+    let predicate = NSPredicate(format: "value CONTAINS %@", text)
+    let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+    return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+  }
+
+  /// The label and value together. `LabeledContent` may publish its value
+  /// in either, and this test cares only that "52°C" reaches the tree.
+  private func spokenText(of element: XCUIElement) -> String {
+    "\(element.label) \((element.value as? String) ?? "")"
+  }
+
+  /// Drags the dashboard up by a quarter of the screen on iPhone, so the whole
+  /// System card clears the tab bar before a screenshot. The iPad shows the
+  /// card in full without it. A slow drag held at its end, not `swipeUp()`,
+  /// so no fling carries the card's header under the navigation bar.
+  private func revealSystemCard(in app: XCUIApplication) {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+    app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(
+      forDuration: 0.1,
+      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)),
+      withVelocity: .slow,
+      thenHoldForDuration: 0.5
+    )
+  }
+
+  /// `FakeMetricsStream`'s `.live` mode: CPU alternates 47% and 53% once a
+  /// second over the fixture's polled 12%. Seeing both values proves the gauge
+  /// follows the stream while the dashboard is on screen, not that it showed
+  /// one live value once.
+  func testLiveMetricsReplaceThePolledGaugesAndShowTheCpuTemperature() throws {
+    let app = launch(state: "live-metrics")
+
+    let cpu = element(identifier: "dashboard.metricGauge.cpu", in: app)
+    XCTAssertTrue(cpu.waitForExistence(timeout: 5), "dashboard.metricGauge.cpu never appeared")
+    XCTAssertTrue(waitForValue(of: cpu, containing: "47%"), "the CPU gauge never showed the live 47%, got \"\(cpu.value ?? "")\"")
+    XCTAssertTrue(waitForValue(of: cpu, containing: "53%"), "the CPU gauge never moved on to the live 53%, got \"\(cpu.value ?? "")\"")
+
+    let memory = element(identifier: "dashboard.metricGauge.memory", in: app)
+    XCTAssertTrue(waitForValue(of: memory, containing: "30%"), "the memory gauge never showed the live 30%, got \"\(memory.value ?? "")\"")
+    // Used and total move with the percent, so the detail line agrees.
+    XCTAssertTrue(waitForValue(of: memory, containing: "9.6 GB"), "the memory detail never followed the live reading, got \"\(memory.value ?? "")\"")
+
+    let temperature = element(identifier: "dashboard.cpuTemperature", in: app)
+    XCTAssertTrue(temperature.waitForExistence(timeout: 5), "the CPU temperature row never appeared")
+    XCTAssertTrue(spokenText(of: temperature).contains("52°C"), "the CPU temperature row read \"\(spokenText(of: temperature))\"")
+
+    revealSystemCard(in: app)
+    try saveScreenshot(named: "dashboard-system-live")
+  }
+
+  /// A live stream whose server reports no CPU sensor: the gauges are live,
+  /// and there is no temperature row at all, not a "—" that never fills in.
+  func testNoCpuSensorHidesTheTemperatureRow() throws {
+    let app = launch(state: "live-metrics-no-sensor")
+
+    let cpu = element(identifier: "dashboard.metricGauge.cpu", in: app)
+    XCTAssertTrue(cpu.waitForExistence(timeout: 5), "dashboard.metricGauge.cpu never appeared")
+    XCTAssertTrue(waitForValue(of: cpu, containing: "47%"), "the CPU gauge never showed the live 47%, got \"\(cpu.value ?? "")\"")
+    XCTAssertTrue(waitForValue(of: cpu, containing: "53%"), "the CPU gauge never moved on to the live 53%, got \"\(cpu.value ?? "")\"")
+
+    XCTAssertFalse(
+      element(identifier: "dashboard.cpuTemperature", in: app).exists,
+      "a server with no CPU sensor must not show a temperature row")
+
+    revealSystemCard(in: app)
+    try saveScreenshot(named: "dashboard-system-no-sensor")
+  }
+
+  /// The acceptance criterion: on a websocket failure the dashboard falls
+  /// back to its polled values and shows no alarming message. The fake's
+  /// stream fails and stays failed; the live repository's own retry is
+  /// covered in the kit tests. The live value
+  /// is seen first, so a stream that never ran cannot pass this.
+  func testAFailingStreamFallsBackToThePolledValuesWithoutAnError() {
+    let app = launch(state: "live-metrics-fails")
+
+    let cpu = element(identifier: "dashboard.metricGauge.cpu", in: app)
+    XCTAssertTrue(cpu.waitForExistence(timeout: 5), "dashboard.metricGauge.cpu never appeared")
+    XCTAssertTrue(waitForValue(of: cpu, containing: "47%"), "the CPU gauge never showed the live 47%, got \"\(cpu.value ?? "")\"")
+    let temperature = element(identifier: "dashboard.cpuTemperature", in: app)
+    XCTAssertTrue(temperature.exists, "the CPU temperature row never appeared while the stream was live")
+
+    // `FakeMetricsStream.failureDelay` is 5 s; the fixture's polled CPU is 12%.
+    XCTAssertTrue(waitForValue(of: cpu, containing: "12%", timeout: 10), "the CPU gauge never fell back to the polled 12%, got \"\(cpu.value ?? "")\"")
+    // The poll has no temperature, so the last reading stays rather than the
+    // row vanishing and every card below it jumping.
+    XCTAssertTrue(temperature.exists, "the temperature row disappeared when the stream failed")
+    XCTAssertTrue(spokenText(of: temperature).contains("52°C"), "the CPU temperature row read \"\(spokenText(of: temperature))\" after the stream failed")
+    XCTAssertFalse(
+      app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Couldn't reach the server")).firstMatch.exists,
+      "a failed live stream must not show the stream's error")
+    XCTAssertFalse(element(identifier: "dashboard.error", in: app).exists, "a failed live stream must not fail the dashboard")
+  }
 }

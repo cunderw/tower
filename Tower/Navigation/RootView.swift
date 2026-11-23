@@ -61,7 +61,12 @@ struct RootView: View {
     self.environment = environment
     self.theme = theme
     self.onSignOut = onSignOut
-    _dashboardStore = State(initialValue: DashboardStore(repository: environment.makeRepository(server)))
+    _dashboardStore = State(
+      initialValue: DashboardStore(
+        repository: environment.makeRepository(server),
+        metrics: environment.makeMetricsStream(server)
+      )
+    )
     _dockerStore = State(initialValue: DockerStore(repository: environment.makeDockerRepository(server)))
     _vmStore = State(initialValue: VMStore(repository: environment.makeVMRepository(server)))
     _shareStore = State(initialValue: ShareStore(repository: environment.makeShareRepository(server)))
