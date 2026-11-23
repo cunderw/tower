@@ -36,15 +36,6 @@ final class ParityCheckUITests: XCTestCase {
     app.buttons["parity.action.\(slug)"].firstMatch
   }
 
-  /// A button in an open confirmation dialog. The dialog's "Cancel Check"
-  /// shares its label with the control that opened it, so this excludes the
-  /// controls by identifier.
-  private func dialogButton(_ label: String, in app: XCUIApplication) -> XCUIElement {
-    app.buttons.matching(
-      NSPredicate(format: "label == %@ AND NOT (identifier BEGINSWITH 'parity.action.')", label)
-    ).firstMatch
-  }
-
   private func waitForDashboard(_ app: XCUIApplication) {
     XCTAssertTrue(
       app.descendants(matching: .any).matching(identifier: "array.state").firstMatch

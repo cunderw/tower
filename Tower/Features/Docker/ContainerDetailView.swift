@@ -368,11 +368,22 @@ private struct ContainerActionsSection: View {
       } else {
         Label("Update", systemImage: "arrow.down.circle")
           .frame(maxWidth: .infinity, alignment: .leading)
-          .foregroundStyle(Color.accentColor)
+          .foregroundStyle(Self.tint(role: nil, isEnabled: !isUpdateDisabled))
       }
     }
-    .disabled(isInFlight || store.isUpdatingAll || isStillUpdating)
+    .disabled(isUpdateDisabled)
     .accessibilityIdentifier("containerDetail.updateButton")
+  }
+
+  private var isUpdateDisabled: Bool { isInFlight || store.isUpdatingAll || isStillUpdating }
+
+  /// The row's colour: red or the accent while it can be tapped, and the
+  /// secondary colour while it is disabled. The explicit style overrides the
+  /// dimming a disabled button would otherwise get, so a row with an action
+  /// in flight would still look tappable without this.
+  private static func tint(role: ButtonRole?, isEnabled: Bool) -> Color {
+    guard isEnabled else { return .secondary }
+    return role == .destructive ? .red : .accentColor
   }
 
   private func perform(_ action: ContainerAction) {
@@ -401,7 +412,7 @@ private struct ContainerActionsSection: View {
     Button(role: role, action: action) {
       Label(title, systemImage: systemImage)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .foregroundStyle(role == .destructive ? Color.red : Color.accentColor)
+        .foregroundStyle(Self.tint(role: role, isEnabled: !isInFlight))
     }
     .disabled(isInFlight)
     .accessibilityIdentifier(identifier)

@@ -16,6 +16,9 @@ enum ContainerUpdateOutcome: Equatable, Sendable {
   /// The client stopped waiting. The server goes on with the update.
   case stillRunning
   case failed(AppError)
+  /// "Update All" reached the container while another action ran on it, and
+  /// left it alone.
+  case skipped
 }
 
 /// Where an "Update All" run is: updating the `position`th of `total`.
@@ -64,6 +67,7 @@ extension ContainerUpdateReport.Entry {
     case .updated: "Updated \(containerName)."
     case .stillRunning: "\(containerName) is still updating on the server. Refresh in a few minutes."
     case .failed(let error): "Couldn't update \(containerName). \(error.message)"
+    case .skipped: "Skipped \(containerName) while another action ran on it."
     }
   }
 }
@@ -270,6 +274,14 @@ final class DockerStore: LoadingStore {
   /// off while it runs, so one container is never updated twice at once.
   var isUpdatingAll: Bool { updateProgress != nil }
 
+  /// Single updates in flight. Their results go into one report, so a second
+  /// update that finishes first does not erase the first one's result.
+  private var singleUpdateCount = 0
+
+  /// Whether any update runs, single or "Update All". "Update All" waits
+  /// for single updates to finish, so the two never share a report.
+  var isAnyUpdateRunning: Bool { isUpdatingAll || singleUpdateCount > 0 }
+
   /// The containers that report an update and can be sent one, in list
   /// order. Leaves out a container still updating on the server.
   var containersWithUpdates: [Container] {
@@ -324,9 +336,15 @@ final class DockerStore: LoadingStore {
   /// refreshes the list, which is what the server shows after the recreate.
   func update(_ container: Container) async {
     guard !isBusy(container), !isUpdatingAll, !isStillUpdatingOnServer(container) else { return }
-    updateReport = nil
+    // The first of several overlapping single updates starts a new report;
+    // each later one adds its entry to it.
+    if singleUpdateCount == 0 { updateReport = nil }
+    singleUpdateCount += 1
     let outcome = await runUpdate(container)
-    finishUpdateRun([.init(containerName: container.displayName, outcome: outcome)])
+    singleUpdateCount -= 1
+    let entry = ContainerUpdateReport.Entry(containerName: container.displayName, outcome: outcome)
+    updateReport = ContainerUpdateReport(entries: (updateReport?.entries ?? []) + [entry])
+    playFeedback(for: [entry])
     await refresh()
   }
 
@@ -335,7 +353,7 @@ final class DockerStore: LoadingStore {
   /// request that stops at the first failure and discards the updates before
   /// it. Here one failure does not stop the rest, and each result is kept.
   func updateAll() async {
-    guard !isUpdatingAll else { return }
+    guard !isAnyUpdateRunning else { return }
     let targets = containersWithUpdates.filter { !isBusy($0) }
     guard !targets.isEmpty else { return }
     updateReport = nil
@@ -349,7 +367,8 @@ final class DockerStore: LoadingStore {
       entries.append(.init(containerName: target.displayName, outcome: outcome))
     }
     updateProgress = nil
-    finishUpdateRun(entries)
+    updateReport = ContainerUpdateReport(entries: entries)
+    playFeedback(for: entries)
     await refresh()
   }
 
@@ -360,7 +379,13 @@ final class DockerStore: LoadingStore {
   /// One `update(id:)` call, with the in-flight markers set around it. On
   /// success, puts the recreated container in the list in place of the old
   /// one. Never throws: the outcome says how it ended.
+  ///
+  /// Skips a container with another action in flight: "Update All" queues
+  /// its targets, and the user can stop or restart one before its turn. The
+  /// markers are set only after that check, so the `defer` removes only
+  /// markers this call set, never the other action's.
   private func runUpdate(_ container: Container) async -> ContainerUpdateOutcome {
+    guard !isBusy(container) else { return .skipped }
     let name = container.displayName
     inFlight.insert(container.id)
     updatingNames.insert(name)
@@ -397,12 +422,13 @@ final class DockerStore: LoadingStore {
     return outcome
   }
 
-  private func finishUpdateRun(_ entries: [ContainerUpdateReport.Entry]) {
-    let report = ContainerUpdateReport(entries: entries)
-    updateReport = report
-    if report.hasFailure {
+  /// The error haptic when any update failed, the success haptic when every
+  /// one updated, and neither otherwise: an update still running on the
+  /// server, or one skipped, has not succeeded yet.
+  private func playFeedback(for entries: [ContainerUpdateReport.Entry]) {
+    if entries.contains(where: \.isFailure) {
       lastActionFailure += 1
-    } else {
+    } else if entries.allSatisfy({ $0.outcome == .updated }) {
       lastActionSuccess += 1
     }
   }

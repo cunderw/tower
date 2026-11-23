@@ -313,6 +313,7 @@ struct DockerStoreUpdateTests {
     #expect(store.updateReport?.summary == "webtop is still updating on the server. Refresh in a few minutes.")
     #expect(store.updateReport?.hasFailure == false)
     #expect(store.lastActionFailure == 0)
+    #expect(store.lastActionSuccess == 0, "an update still running on the server has not succeeded yet")
   }
 
   /// After a client timeout the server is still pulling, and the refresh that
@@ -430,6 +431,68 @@ struct DockerStoreUpdateTests {
     #expect(store.lastActionFailure == 1)
   }
 
+  /// Two single updates at once: the one that finishes second must not erase
+  /// the first one's result.
+  @Test func overlappingSingleUpdatesKeepBothResults() async {
+    let emby = Container.stub(id: "e", names: ["/emby"], isUpdateAvailable: true)
+    let webtop = Container.stub(id: "w", names: ["/webtop"], isUpdateAvailable: true)
+    let repository = GatedUpdateRepository()
+    repository.recreated = ["w": Container.stub(id: "w2", names: ["/webtop"], isUpdateAvailable: false)]
+    repository.failures = ["e": .graphQL(["Error pulling image: manifest unknown"])]
+    repository.containersResult = [emby, repository.recreated["w"]!]
+    let store = DockerStore(repository: repository)
+    store.state = .loaded([emby, webtop])
+
+    let first = Task { await store.update(emby) }
+    await repository.updateGate.waitUntilEntered(atLeast: 1)
+    let second = Task { await store.update(webtop) }
+    await repository.updateGate.waitUntilEntered(atLeast: 2)
+
+    await repository.updateGate.release(0)
+    await first.value
+    await repository.updateGate.release(1)
+    await second.value
+
+    #expect(
+      store.updateReport?.summary
+        == "Updated 1 of 2 containers.\nCouldn't update emby. Error pulling image: manifest unknown",
+      "the second update's result replaced the first one's")
+  }
+
+  /// "Update All" queues its targets, and the user can stop one before its
+  /// turn. The run must leave that container alone, and must not clear the
+  /// stop's in-flight marker.
+  @Test func updateAllSkipsAContainerWithAnotherActionInFlight() async {
+    let code = Container.stub(id: "c", names: ["/code-server"], isUpdateAvailable: true)
+    let webtop = Container.stub(id: "w", names: ["/webtop"], isUpdateAvailable: true)
+    let repository = GatedUpdateRepository()
+    // `w` has a recreated container too, so a store without the guard fails
+    // on the assertions below rather than on this stub.
+    repository.recreated = [
+      "c": Container.stub(id: "c2", names: ["/code-server"], isUpdateAvailable: false),
+      "w": Container.stub(id: "w2", names: ["/webtop"], isUpdateAvailable: false),
+    ]
+    repository.containersResult = [repository.recreated["c"]!, webtop]
+    let store = DockerStore(repository: repository)
+    store.state = .loaded([code, webtop])
+
+    let run = Task { await store.updateAll() }
+    await repository.updateGate.waitUntilEntered(atLeast: 1)
+    let stop = Task { await store.perform(.stop, on: webtop) }
+    await repository.actionGate.waitUntilEntered(atLeast: 1)
+
+    await repository.updateGate.releaseAll()
+    await run.value
+
+    #expect(repository.updateCalls == ["c"], "Update All sent an update for a container being stopped")
+    #expect(store.inFlight.contains("w"), "Update All cleared the stop's in-flight marker")
+    #expect(store.updateReport?.summary.contains("Skipped webtop") == true)
+
+    await repository.actionGate.releaseAll()
+    await stop.value
+    #expect(!store.inFlight.contains("w"))
+  }
+
   @Test func reportSummaryWhenEveryUpdateSucceeds() {
     let report = ContainerUpdateReport(entries: [
       .init(containerName: "plex", outcome: .updated),
@@ -483,8 +546,15 @@ private final class GatedUpdateRepository: DockerRepositoryProtocol, @unchecked 
     return container
   }
 
+  /// `stop(id:)` parks here, so a test can hold a stop in flight while an
+  /// update run reaches the same container.
+  let actionGate = Gate()
+
   func start(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
-  func stop(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
+  func stop(id: String) async throws -> ContainerStateUpdate {
+    await actionGate.enter()
+    return ContainerStateUpdate(id: id, state: .exited, status: "Exited (0) 0 seconds ago")
+  }
   func restart(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
   func pause(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }
   func unpause(id: String) async throws -> ContainerStateUpdate { preconditionFailure("not used") }

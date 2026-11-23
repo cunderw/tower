@@ -245,7 +245,7 @@ extension DockerListView {
     if !store.containersWithUpdates.isEmpty || store.isUpdatingAll {
       ToolbarItem(placement: .topBarLeading) {
         Button("Update All") { isConfirmingUpdateAll = true }
-          .disabled(store.isUpdatingAll)
+          .disabled(store.isAnyUpdateRunning)
           .accessibilityIdentifier("docker.updateAll")
       }
     }
