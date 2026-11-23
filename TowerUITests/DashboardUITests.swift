@@ -101,13 +101,18 @@ final class DashboardUITests: XCTestCase {
     "\(element.label) \((element.value as? String) ?? "")"
   }
 
-  /// Drags the dashboard up by about 40% of the screen on iPhone, so the whole
+  /// Drags the dashboard up by a quarter of the screen on iPhone, so the whole
   /// System card clears the tab bar before a screenshot. The iPad shows the
-  /// card in full without it. A drag, not `swipeUp()`, which flings past it.
+  /// card in full without it. A slow drag held at its end, not `swipeUp()`,
+  /// so no fling carries the card's header under the navigation bar.
   private func revealSystemCard(in app: XCUIApplication) {
     guard UIDevice.current.userInterfaceIdiom == .phone else { return }
-    app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
-      .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+    app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(
+      forDuration: 0.1,
+      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)),
+      withVelocity: .slow,
+      thenHoldForDuration: 0.5
+    )
   }
 
   /// `FakeMetricsStream`'s `.live` mode: CPU alternates 47% and 53% once a
