@@ -183,7 +183,11 @@ struct DockerListView: View {
           .font(.caption)
           .foregroundStyle(.red)
       }
-      updateStatusRow
+      // Its own section, so it is a separate card above the containers
+      // rather than their first row.
+      if store.updateProgress != nil || store.updateReport != nil {
+        Section { updateStatusRow }
+      }
       ForEach(store.filteredContainers) { container in
         // Carries the identifier, not the `Container` value itself.
         // The scaffold's `detail` closure re-resolves this container

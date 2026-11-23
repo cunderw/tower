@@ -61,9 +61,8 @@ final class ContainerUpdateUITests: XCTestCase {
     update.tap()
 
     // The confirmation, not the update itself: nothing runs until this tap.
-    let confirm = app.buttons["Update webtop?"]
-    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update asked for no confirmation")
-    confirm.tap()
+    XCTAssertTrue(app.staticTexts["Update webtop?"].waitForExistence(timeout: 5), "Update asked for no confirmation")
+    dialogButton("Update", in: app).tap()
   }
 
   /// The recreated container has a new ID. The detail screen holds the old
@@ -107,11 +106,8 @@ final class ContainerUpdateUITests: XCTestCase {
     XCTAssertTrue(updateAll.waitForExistence(timeout: 5), "no Update All with three updates available")
     updateAll.tap()
 
-    // The toolbar button carries the same label, so the dialog's is the one
-    // without the toolbar's identifier.
-    let confirm = app.buttons
-      .matching(NSPredicate(format: "label == 'Update All' AND identifier != 'docker.updateAll'"))
-      .firstMatch
+    // The toolbar button carries the same label; `dialogButton` skips it.
+    let confirm = dialogButton("Update All", in: app)
     XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update All asked for no confirmation")
     XCTAssertTrue(app.staticTexts["Update 3 containers?"].exists, "the confirmation did not count the containers")
     confirm.tap()
@@ -163,12 +159,12 @@ final class ContainerUpdateUITests: XCTestCase {
       _ = update.waitForExistence(timeout: 2)
     }
     XCTAssertTrue(update.exists, "the row's swipe offered no Update")
-    XCTAssertFalse(app.buttons["Restart webtop?"].exists, "the drag committed Restart")
+    XCTAssertFalse(app.staticTexts["Restart webtop?"].exists, "the drag committed Restart")
     update.tap()
 
-    let confirm = app.buttons["Update webtop?"]
-    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "the swipe's Update asked for no confirmation")
-    confirm.tap()
+    XCTAssertTrue(
+      app.staticTexts["Update webtop?"].waitForExistence(timeout: 5), "the swipe's Update asked for no confirmation")
+    dialogButton("Update", in: app).tap()
 
     XCTAssertTrue(
       element("docker.updateReport", labelContains: "Updated webtop.", in: app).waitForExistence(timeout: 10),

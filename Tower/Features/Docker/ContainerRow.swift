@@ -101,7 +101,7 @@ struct ContainerRow: View {
       titleVisibility: .visible,
       presenting: pendingConfirmation
     ) { action in
-      Button(confirmationTitle, role: .destructive) {
+      Button(action.confirmationVerb, role: action == .update ? nil : .destructive) {
         onAction(action)
       }
       Button("Cancel", role: .cancel) {}

@@ -325,7 +325,7 @@ private struct ContainerActionsSection: View {
       titleVisibility: .visible,
       presenting: pendingConfirmation
     ) { action in
-      Button(confirmationTitle, role: .destructive) {
+      Button(action.confirmationVerb, role: action == .update ? nil : .destructive) {
         perform(action)
       }
       Button("Cancel", role: .cancel) {}
@@ -336,26 +336,29 @@ private struct ContainerActionsSection: View {
     }
   }
 
-  /// Update, behind the same confirmation as Stop and Restart: the container
-  /// stops and is recreated. While the update runs, the row reads "Updating…"
+  /// Update, behind a confirmation like Stop and Restart: the container stops
+  /// and is recreated. Its confirm button has no destructive role, because the
+  /// container comes back. While the update runs, the row reads "Updating…"
   /// with a spinner, because a pull can take minutes.
   private var updateButton: some View {
     Button {
       pendingConfirmation = .update
     } label: {
-      Group {
-        if isUpdating {
-          HStack(spacing: 8) {
-            ProgressView()
-            Text("Updating…")
-          }
-          .foregroundStyle(.secondary)
-        } else {
-          Label("Update", systemImage: "arrow.down.circle")
-            .foregroundStyle(Color.accentColor)
+      // Each branch a `Label` framed like `actionButton`'s, so the text
+      // starts on the same column as the other actions.
+      if isUpdating {
+        Label {
+          Text("Updating…")
+        } icon: {
+          ProgressView()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(.secondary)
+      } else {
+        Label("Update", systemImage: "arrow.down.circle")
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .foregroundStyle(Color.accentColor)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .disabled(isInFlight || store.isUpdatingAll)
     .accessibilityIdentifier("containerDetail.updateButton")
@@ -411,6 +414,19 @@ private struct ContainerActionsSection: View {
 }
 
 extension ContainerAction {
+  /// The confirmation dialog's button: the verb alone, under the dialog's
+  /// "Stop code-server?" title. Shared by the row and the detail screen.
+  var confirmationVerb: String {
+    switch self {
+    case .start: "Start"
+    case .stop: "Stop"
+    case .restart: "Restart"
+    case .pause: "Pause"
+    case .unpause: "Resume"
+    case .update: "Update"
+    }
+  }
+
   /// The update confirmation's message, shared by the row and the detail
   /// screen.
   static let updateConfirmationMessage =

@@ -364,11 +364,10 @@ final class ScreenshotTourUITests: XCTestCase {
     try capture(named: "docker-update-detail")
 
     update.tap()
-    let confirm = app.buttons["Update webtop?"]
-    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update asked for no confirmation")
+    XCTAssertTrue(app.staticTexts["Update webtop?"].waitForExistence(timeout: 5), "Update asked for no confirmation")
     try capture(named: "docker-update-confirm")
 
-    confirm.tap()
+    dialogButton("Update", in: app).tap()
     let running = app.buttons.matching(
       NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "containerDetail.updateButton", "Updating")
     ).firstMatch
@@ -394,9 +393,7 @@ final class ScreenshotTourUITests: XCTestCase {
     let updateAll = app.buttons["docker.updateAll"]
     XCTAssertTrue(updateAll.waitForExistence(timeout: 5), "no Update All in demo mode")
     updateAll.tap()
-    let confirm = app.buttons
-      .matching(NSPredicate(format: "label == 'Update All' AND identifier != 'docker.updateAll'"))
-      .firstMatch
+    let confirm = dialogButton("Update All", in: app)
     XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update All asked for no confirmation")
     try capture(named: "docker-update-all-confirm")
 
@@ -439,9 +436,7 @@ final class ScreenshotTourUITests: XCTestCase {
     let updateAll = app.buttons["docker.updateAll"]
     XCTAssertTrue(updateAll.waitForExistence(timeout: 10), "no Update All with three updates")
     updateAll.tap()
-    let confirm = app.buttons
-      .matching(NSPredicate(format: "label == 'Update All' AND identifier != 'docker.updateAll'"))
-      .firstMatch
+    let confirm = dialogButton("Update All", in: app)
     XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update All asked for no confirmation")
     confirm.tap()
     XCTAssertTrue(
@@ -468,7 +463,7 @@ final class ScreenshotTourUITests: XCTestCase {
     try capture(named: "docker-update-swipe")
 
     update.tap()
-    XCTAssertTrue(app.buttons["Update webtop?"].waitForExistence(timeout: 5), "no confirmation")
+    XCTAssertTrue(app.staticTexts["Update webtop?"].waitForExistence(timeout: 5), "no confirmation")
     try capture(named: "docker-update-swipe-confirm")
   }
 
@@ -482,9 +477,8 @@ final class ScreenshotTourUITests: XCTestCase {
     let update = app.buttons["containerDetail.updateButton"]
     XCTAssertTrue(update.waitForExistence(timeout: 10), "webtop's detail offered no Update")
     update.tap()
-    let confirm = app.buttons["Update webtop?"]
-    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Update asked for no confirmation")
-    confirm.tap()
+    XCTAssertTrue(app.staticTexts["Update webtop?"].waitForExistence(timeout: 5), "Update asked for no confirmation")
+    dialogButton("Update", in: app).tap()
 
     XCTAssertTrue(
       app.staticTexts["containerDetail.updateResult"].waitForExistence(timeout: 10),
