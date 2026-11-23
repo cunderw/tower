@@ -96,6 +96,26 @@ enum DemoData {
     correcting: true
   )
 
+  /// Past checks, newest first: monthly, mostly clean, one with corrected
+  /// errors and one cancelled. Dates are relative to now, so the list never
+  /// ages.
+  static var parityHistory: [ParityCheckRecord] {
+    let day: TimeInterval = 24 * 60 * 60
+    let rows: [(daysAgo: Double, seconds: Int, speed: String, state: ParityCheckState, errors: Int)] = [
+      (30, 98_253, "122.1 MB/s", .completed, 0),
+      (61, 101_013, "118.8 MB/s", .completed, 0),
+      (91, 27_402, "117.5 MB/s", .cancelled, 0),
+      (92, 99_845, "120.2 MB/s", .completed, 3),
+      (122, 100_362, "119.6 MB/s", .completed, 0),
+    ]
+    return rows.enumerated().map { index, row in
+      ParityCheckRecord(
+        id: index, date: Date(timeIntervalSinceNow: -row.daysAgo * day),
+        durationSeconds: row.seconds, speed: row.speed, state: row.state, errors: row.errors
+      )
+    }
+  }
+
   /// 12 days before whenever the demo is opened, so uptime reads as a plausible
   /// duration rather than a fixed date that ages into nonsense.
   ///

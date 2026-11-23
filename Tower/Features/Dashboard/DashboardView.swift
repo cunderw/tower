@@ -41,6 +41,9 @@ struct DashboardView: View {
         .navigationDestination(for: ArrayDisk.ID.self) { diskID in
           DiskDetailView(store: store, diskID: diskID)
         }
+        .navigationDestination(for: ParityRoute.self) { _ in
+          ParityCheckView(store: store)
+        }
         .modifier(
           TowerToolbarModifier(
             isShowingNotifications: $isShowingNotifications,
@@ -100,7 +103,13 @@ struct DashboardView: View {
               .foregroundStyle(.red)
               .frame(maxWidth: .infinity, alignment: .leading)
           }
-          ArrayHeroCard(snapshot: snapshot)
+          ArrayHeroCard(
+            snapshot: snapshot,
+            parityActionInFlight: store.parityActionInFlight,
+            onParityAction: { action, correct in
+              Task { await store.perform(action, correct: correct) }
+            }
+          )
           SystemMetricsCard(system: snapshot.array.system)
           ServicesCard(counts: snapshot.services, onSelect: onSelectTab)
           // Each group is skipped entirely when empty — `DiskListCard` has

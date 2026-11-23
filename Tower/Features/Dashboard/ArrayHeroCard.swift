@@ -5,6 +5,10 @@ import TowerCore
 /// parity check status. The single most-looked-at surface in the app.
 struct ArrayHeroCard: View {
   let snapshot: DashboardSnapshot
+  /// Disables the parity controls while an action is in flight.
+  var parityActionInFlight: ParityAction?
+  /// Runs a parity action; the `Bool` is Start's correct-errors choice.
+  var onParityAction: (ParityAction, Bool) -> Void = { _, _ in }
 
   // At the largest accessibility text sizes the capacity ring (itself
   // `@ScaledMetric`, see `CapacityRing`) grows large enough that it and the
@@ -27,6 +31,7 @@ struct ArrayHeroCard: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
+        parityFooter
       }
     } accessory: {
       statusPill
@@ -134,6 +139,29 @@ struct ArrayHeroCard: View {
       }
     }
     .accessibilityIdentifier("array.parityProgress")
+  }
+
+  /// The parity controls and the way into the Parity screen. Outside
+  /// `parityProgressSection`, whose identifier would overwrite the buttons'.
+  private var parityFooter: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      let actions = snapshot.availableParityActions
+      if !actions.isEmpty {
+        ParityControls(actions: actions, actionInFlight: parityActionInFlight, perform: onParityAction)
+      }
+      NavigationLink(value: ParityRoute()) {
+        HStack {
+          Label("Parity History", systemImage: "clock.arrow.circlepath")
+          Spacer()
+          Image(systemName: "chevron.forward")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityIdentifier("parity.history.link")
+    }
   }
 
   private var parityPercentText: String {

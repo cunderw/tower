@@ -35,11 +35,15 @@ final class DemoServer: @unchecked Sendable {
   private var containers: [Container]
   private var domains: [VMDomain]
   private var notifications: [ServerNotification]
+  private var parity: ParityStatus
+  private var parityHistory: [ParityCheckRecord]
 
   init() {
     containers = DemoData.containers
     domains = DemoData.domains
     notifications = DemoData.notifications
+    parity = DemoData.parity
+    parityHistory = DemoData.parityHistory
   }
 
   // MARK: - Reads
@@ -56,13 +60,17 @@ final class DemoServer: @unchecked Sendable {
     lock.withLock { notifications }
   }
 
+  func currentParityHistory() -> [ParityCheckRecord] {
+    lock.withLock { parityHistory }
+  }
+
   /// The dashboard's snapshot, recomputed from live state so the services card
   /// agrees with what the other tabs show.
   func dashboard() -> DashboardSnapshot {
     lock.withLock {
       DashboardSnapshot(
         array: DemoData.array,
-        parity: DemoData.parity,
+        parity: parity,
         services: ServiceCounts(
           containersRunning: containers.filter(\.isRunning).count,
           containersTotal: containers.count,
@@ -112,6 +120,50 @@ final class DemoServer: @unchecked Sendable {
       notifications = notifications.map { notification in
         guard notification.id == id else { return notification }
         return notification.movedTo(kind)
+      }
+    }
+  }
+
+  /// A new check from 0%, as Unraid reports one the moment it starts.
+  func startParityCheck(correct: Bool) {
+    lock.withLock {
+      parity = ParityStatus(
+        state: .running, progressPercent: 0, errors: 0, speed: nil,
+        lastRunTimestamp: nil, durationSeconds: nil, correcting: correct
+      )
+    }
+  }
+
+  /// Pause or resume: the same check, in another state.
+  func setParityState(_ state: ParityCheckState) {
+    lock.withLock {
+      parity = ParityStatus(
+        state: state, progressPercent: parity.progressPercent, errors: parity.errors,
+        speed: parity.speed, lastRunTimestamp: parity.lastRunTimestamp,
+        durationSeconds: parity.durationSeconds, correcting: parity.correcting
+      )
+    }
+  }
+
+  /// Ends the check and records it in the history, as Unraid does.
+  func cancelParityCheck() {
+    lock.withLock {
+      let now = Date()
+      let durationSeconds = 9 * 60 * 60
+      parity = ParityStatus(
+        state: .cancelled, progressPercent: nil, errors: parity.errors, speed: nil,
+        lastRunTimestamp: now.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true)),
+        durationSeconds: durationSeconds, correcting: false
+      )
+      let cancelled = ParityCheckRecord(
+        id: 0, date: now, durationSeconds: durationSeconds, speed: "150 MB/s",
+        state: .cancelled, errors: parity.errors
+      )
+      parityHistory = ([cancelled] + parityHistory).enumerated().map { index, record in
+        ParityCheckRecord(
+          id: index, date: record.date, durationSeconds: record.durationSeconds,
+          speed: record.speed, state: record.state, errors: record.errors
+        )
       }
     }
   }

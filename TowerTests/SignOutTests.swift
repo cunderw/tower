@@ -113,6 +113,15 @@ private struct StubRepository: SystemRepositoryProtocol {
       services: ServiceCounts(containersRunning: 0, containersTotal: 0, vmsRunning: 0, vmsTotal: 0, sharesTotal: 0)
     )
   }
+  func startParityCheck(correct: Bool) async throws { unreachable() }
+  func pauseParityCheck() async throws { unreachable() }
+  func resumeParityCheck() async throws { unreachable() }
+  func cancelParityCheck() async throws { unreachable() }
+  func parityHistory() async throws -> [ParityCheckRecord] { unreachable() }
+
+  private func unreachable() -> Never {
+    preconditionFailure("SignOutTests never triggers a parity action")
+  }
 }
 
 private struct StubDockerRepository: DockerRepositoryProtocol {

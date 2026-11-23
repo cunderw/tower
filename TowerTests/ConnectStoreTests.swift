@@ -159,4 +159,11 @@ private final class StubSystemRepository: SystemRepositoryProtocol, @unchecked S
       )
     )
   }
+
+  // The connect flow never touches parity.
+  func startParityCheck(correct: Bool) async throws { fatalError("not used by ConnectStore") }
+  func pauseParityCheck() async throws { fatalError("not used by ConnectStore") }
+  func resumeParityCheck() async throws { fatalError("not used by ConnectStore") }
+  func cancelParityCheck() async throws { fatalError("not used by ConnectStore") }
+  func parityHistory() async throws -> [ParityCheckRecord] { fatalError("not used by ConnectStore") }
 }

@@ -115,7 +115,8 @@ struct TowerApp: App {
     // accessibility value is reachable from a UI test, and
     // `disk-temp-oscillates` backs `DiskDetailUITests`' liveness proof
     // that the disk detail screen reflects a store update
-    // made while it's open.
+    // made while it's open, and `parity-action-fails` makes every
+    // parity action fail with a server message.
     // Debug-only for the same reason as the argument above: it can
     // force a shipped app to skip authentication entirely.
     if arguments.contains("--uitest-seed-dashboard") {
@@ -126,6 +127,7 @@ struct TowerApp: App {
       case "nil-metrics": outcome = .unknownMetrics
       case "disk-temp-oscillates": outcome = .diskTempOscillates
       case "hangs": outcome = .hangs
+      case "parity-action-fails": outcome = .parityActionFails
       default: outcome = .success
       }
       environment.makeRepository = { _ in FakeSystemRepository(outcome: outcome) }
