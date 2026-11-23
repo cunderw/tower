@@ -230,7 +230,7 @@ final class DashboardStore: LoadingStore {
   ///
   /// `passphrase` goes into the request and nowhere else: not into
   /// `arrayActionInFlight`, `state`, or any error text.
-  func perform(_ action: ArrayAction, passphrase: String? = nil) async {
+  func perform(_ action: ArrayAction, passphrase: String?) async {
     guard !isActionInFlight else { return }
     arrayActionInFlight = action
 

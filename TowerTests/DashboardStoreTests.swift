@@ -174,7 +174,7 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository)
     store.state = .loaded(started)
 
-    await store.perform(.stop)
+    await store.perform(.stop, passphrase: nil)
 
     #expect(repository.calls == ["setArrayState(stop, passphrase: false)", "dashboard"])
     #expect(store.state == .loaded(stopped))
@@ -209,7 +209,7 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository)
     store.state = .loaded(started)
 
-    await store.perform(.stop)
+    await store.perform(.stop, passphrase: nil)
 
     #expect(repository.calls == ["setArrayState(stop, passphrase: false)", "dashboard", "dashboard", "dashboard"])
     #expect(store.state == .loaded(stopped), "a failed re-fetch must not end the wait")
@@ -225,7 +225,7 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository)
     store.state = .loaded(stopped)
 
-    await store.perform(.start)
+    await store.perform(.start, passphrase: nil)
 
     #expect(store.state == .loaded(started))
     #expect(store.state.error == nil)
@@ -237,7 +237,7 @@ struct DashboardArrayActionTests {
     )
     let store = makeStore(repository)
     store.state = .loaded(started)
-    let stop = Task { await store.perform(.stop) }
+    let stop = Task { await store.perform(.stop, passphrase: nil) }
 
     await repository.gate.release(0)
     await repository.gate.waitUntilEntered(atLeast: 2)
@@ -274,7 +274,7 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository, attempts: 2)
     store.state = .loaded(stopped)
 
-    await store.perform(.start)
+    await store.perform(.start, passphrase: nil)
 
     #expect(store.state.error == .stillRunning("The array has not started yet. Pull to refresh to check again."))
   }
@@ -289,7 +289,7 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository, attempts: 1)
     store.state = .loaded(started)
 
-    await store.perform(.stop)
+    await store.perform(.stop, passphrase: nil)
 
     #expect(store.state.value == changed)
     #expect(store.state.error == .stillRunning("The array has not stopped yet. Pull to refresh to check again."))
@@ -303,7 +303,7 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository)
     store.state = .loaded(started)
 
-    await store.perform(.stop)
+    await store.perform(.stop, passphrase: nil)
 
     #expect(store.state.value == started)
     #expect(store.state.error?.message == "Array state is still being updated")
@@ -319,7 +319,7 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository)
     store.state = .loaded(started)
 
-    await store.perform(.stop)
+    await store.perform(.stop, passphrase: nil)
 
     let message = store.state.error?.message ?? ""
     #expect(message.hasPrefix("Stop Array succeeded, but Tower couldn't refresh the array status."), "\(message)")
@@ -330,11 +330,11 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository)
     store.state = .loaded(started)
 
-    let stop = Task { await store.perform(.stop) }
+    let stop = Task { await store.perform(.stop, passphrase: nil) }
     await repository.gate.waitUntilEntered(atLeast: 1)
-    await store.perform(.stop)
-    await store.perform(.start)
-    await store.perform(.pause)
+    await store.perform(.stop, passphrase: nil)
+    await store.perform(.start, passphrase: nil)
+    await store.perform(.pause, correct: false)
     #expect(repository.calls == ["setArrayState(stop, passphrase: false)"])
 
     await repository.gate.releaseAll()
@@ -348,10 +348,10 @@ struct DashboardArrayActionTests {
     let store = makeStore(repository)
     store.state = .loaded(running)
 
-    let pause = Task { await store.perform(.pause) }
+    let pause = Task { await store.perform(.pause, correct: false) }
     await repository.gate.waitUntilEntered(atLeast: 1)
     #expect(store.isActionInFlight)
-    await store.perform(.stop)
+    await store.perform(.stop, passphrase: nil)
     #expect(repository.calls == ["pause"])
 
     await repository.gate.releaseAll()
@@ -367,7 +367,7 @@ struct DashboardArrayActionTests {
 
     let poll = Task { await store.refresh() }
     await repository.gate.waitUntilEntered(atLeast: 1)
-    let stop = Task { await store.perform(.stop) }
+    let stop = Task { await store.perform(.stop, passphrase: nil) }
     await repository.gate.waitUntilEntered(atLeast: 2)
     await repository.gate.release(1)
     await repository.gate.release(2)
