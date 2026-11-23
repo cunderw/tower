@@ -36,9 +36,11 @@ public struct LiveSystemRepository: SystemRepositoryProtocol {
   /// Three concurrent requests, not one. Docker and VMs are optional Unraid
   /// services, and a disabled one fails its part of a query: with Docker off,
   /// the non-null `Docker.containers` resolver throws "Docker socket
-  /// unavailable.", and because `docker` is non-null too the null reaches the
-  /// root and the server answers `data: null` (issue #10). Asked in one query,
-  /// that took the array, the system info and the shares down with it.
+  /// unavailable.". Before API 4.37 `docker` is non-null too, so the null
+  /// reaches the root and the server answers `data: null` (issue #10). Asked
+  /// in one query, that took the array, the system info and the shares down
+  /// with it. From 4.37 `docker` and `vms` are nullable, and the null stops
+  /// there (issue #21).
   ///
   /// So the core query (array, info, metrics, shares) still fails the
   /// dashboard, and the two counts queries can only make their own row read
@@ -95,8 +97,11 @@ struct ServiceTally: Equatable, Sendable {
 extension DashboardContainersQuery.Data {
   /// Deliberately **not** public — see
   /// `DashboardSnapshot.init(from:containers:vms:)` below.
-  var containerCounts: ServiceTally {
-    let containers = docker.containers
+  ///
+  /// `docker` is nullable from API 4.37 (issue #21), and a null one is the
+  /// "Unavailable" row.
+  var containerCounts: ServiceTally? {
+    guard let containers = docker?.containers else { return nil }
     return ServiceTally(running: containers.filter { $0.state == .running }.count, total: containers.count)
   }
 }
@@ -112,7 +117,7 @@ extension DashboardVMsQuery.Data {
   /// must produce `nil` rather than collapsing to the same zeros a healthy,
   /// VM-less server reports.
   var vmCounts: ServiceTally? {
-    guard let domains = vms.domains else { return nil }
+    guard let domains = vms?.domains else { return nil }
     return ServiceTally(running: domains.filter { $0.state == .running }.count, total: domains.count)
   }
 }

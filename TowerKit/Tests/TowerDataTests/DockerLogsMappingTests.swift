@@ -61,7 +61,7 @@ private func makeQuery(logs: Mock<TowerAPITestMocks.DockerContainerLogs>) -> Moc
   ))
 
   let data = await DockerLogsQuery.Data.from(mock)
-  let logs = ContainerLogs(from: data.docker.logs)
+  let logs = ContainerLogs(from: try #require(data.docker).logs)
 
   #expect(logs.containerId == "1")
   #expect(logs.cursor == "2026-07-29T19:00:08.192Z")
@@ -82,7 +82,7 @@ private func makeQuery(logs: Mock<TowerAPITestMocks.DockerContainerLogs>) -> Moc
   ))
 
   let data = await DockerLogsQuery.Data.from(mock)
-  let logs = ContainerLogs(from: data.docker.logs)
+  let logs = ContainerLogs(from: try #require(data.docker).logs)
 
   let line = try #require(logs.lines.first)
   #expect(line.timestamp == nil)
@@ -95,7 +95,7 @@ private func makeQuery(logs: Mock<TowerAPITestMocks.DockerContainerLogs>) -> Moc
   ))
 
   let data = await DockerLogsQuery.Data.from(mock)
-  let logs = ContainerLogs(from: data.docker.logs)
+  let logs = ContainerLogs(from: try #require(data.docker).logs)
 
   #expect(logs.cursor == nil)
 }
@@ -109,7 +109,7 @@ private func makeQuery(logs: Mock<TowerAPITestMocks.DockerContainerLogs>) -> Moc
   ))
 
   let data = await DockerLogsQuery.Data.from(mock)
-  let logs = ContainerLogs(from: data.docker.logs)
+  let logs = ContainerLogs(from: try #require(data.docker).logs)
 
   #expect(logs.lines.isEmpty)
 }
@@ -124,7 +124,7 @@ private func makeQuery(logs: Mock<TowerAPITestMocks.DockerContainerLogs>) -> Moc
   ))
 
   let data = await DockerLogsQuery.Data.from(mock)
-  let logs = ContainerLogs(from: data.docker.logs)
+  let logs = ContainerLogs(from: try #require(data.docker).logs)
 
   #expect(logs.lines.map(\.message) == ["first", "second"])
 }

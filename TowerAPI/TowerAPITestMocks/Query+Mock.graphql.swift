@@ -25,14 +25,14 @@ nonisolated public final class Query: MockObject {
 public extension Mock where O == Query {
   convenience init(
     array: Mock<UnraidArray> = Mock<UnraidArray>(),
-    docker: Mock<Docker> = Mock<Docker>(),
+    docker: Mock<Docker>? = nil,
     info: Mock<Info> = Mock<Info>(),
     logFile: Mock<LogFileContent> = Mock<LogFileContent>(),
     logFiles: [Mock<LogFile>] = [],
     metrics: Mock<Metrics> = Mock<Metrics>(),
     notifications: Mock<Notifications> = Mock<Notifications>(),
     shares: [Mock<Share>] = [],
-    vms: Mock<Vms> = Mock<Vms>()
+    vms: Mock<Vms>? = nil
   ) {
     self.init()
     _setEntity(array, for: \.array)

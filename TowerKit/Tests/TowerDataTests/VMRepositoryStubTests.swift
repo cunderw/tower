@@ -78,18 +78,19 @@ private func domainJSON(id: String, name: String?, state: String) -> String {
   #expect(inventory.isUnavailable)
 }
 
-@Test func domainsReportsUnavailableWhenTheServerNullsOnlyVms() async {
-  // Issue #21: from API 4.37 `Query.vms` is nullable. A null `vms` carries no
-  // domains, so it is the "VMs Unavailable" state, not a decoding failure.
+@Test func domainsReportsTheServerErrorWhenTheServerNullsOnlyVms() async {
+  // Issue #21: from API 4.37 `Query.vms` is nullable. A null `vms` must reach
+  // the server's error, not fail in Apollo's decoding first. The error is at
+  // `vms`, not `vms.domains`, so it is not the "VMs Unavailable" state.
   let repository = makeRepository(
     host: "stub-vms-null-vms.test",
     json: #"{"data": {"vms": null}, "errors": [{"message": "Failed to retrieve VMs", "path": ["vms"]}]}"#
   )
   do {
-    let inventory = try await repository.domains()
-    #expect(inventory.isUnavailable)
+    _ = try await repository.domains()
+    Issue.record("expected domains() to throw")
   } catch {
-    Issue.record("domains() threw \(error)")
+    #expect(error as? AppError == .graphQL(["Failed to retrieve VMs"]), "threw \(error)")
   }
 }
 

@@ -59,7 +59,7 @@ private func domainMock(
 /// Runs one `VmDomain` mock through the real mapping initializer.
 private func mapOne(_ domain: Mock<TowerAPITestMocks.VmDomain>) async throws -> VMDomain {
   let data = await VMsQuery.Data.from(makeQuery(vms: Mock<TowerAPITestMocks.Vms>(domains: [domain])))
-  return try #require(data.vms.domains?.first.map(VMDomain.init(from:)))
+  return try #require(data.vms?.domains?.first.map(VMDomain.init(from:)))
 }
 
 @Test func mapsIDNameAndState() async throws {

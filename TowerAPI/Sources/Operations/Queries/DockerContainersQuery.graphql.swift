@@ -19,7 +19,7 @@ nonisolated public struct DockerContainersQuery: GraphQLQuery {
 
     @_spi(Execution) public static var __parentType: any ApolloAPI.ParentType { TowerAPI.Objects.Query }
     @_spi(Execution) public static var __selections: [ApolloAPI.Selection] { [
-      .field("docker", Docker.self),
+      .field("docker", Docker?.self),
     ] }
     @_spi(Execution) public static var __fulfilledFragments: [any ApolloAPI.SelectionSet.Type] { [
       DockerContainersQuery.Data.self
@@ -29,7 +29,7 @@ nonisolated public struct DockerContainersQuery: GraphQLQuery {
     ///
     /// - Action: **READ_ANY**
     /// - Resource: **DOCKER**
-    public var docker: Docker { __data["docker"] }
+    public var docker: Docker? { __data["docker"] }
 
     /// Docker
     ///
