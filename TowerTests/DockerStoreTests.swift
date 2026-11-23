@@ -315,6 +315,39 @@ struct DockerStoreUpdateTests {
     #expect(store.lastActionFailure == 0)
   }
 
+  /// After a client timeout the server is still pulling, and the refresh that
+  /// follows still shows the old container with its update. A second
+  /// `updateContainer` would collide with that pull, so for ten minutes the
+  /// container is left out of Update and Update All. After that the user can
+  /// try again.
+  @Test func aTimedOutUpdateIsNotSentAgainWhileTheServerStillPulls() async {
+    var clock = Date(timeIntervalSince1970: 1_000_000)
+    // Enough stubbed answers for a store without the guard to send all three
+    // updates, so that store fails on the assertions below, not on the stub.
+    let stillRunning = StubDockerRepository.UpdateResult.failure(
+      .stillRunning("The update is still running on the server."))
+    let repository = StubDockerRepository(
+      results: Array(repeating: .success([old]), count: 5),
+      updateResults: [stillRunning, stillRunning, stillRunning]
+    )
+    let store = DockerStore(repository: repository, now: { clock })
+    await store.load()
+
+    await store.update(old)
+    #expect(store.state.value == [old], "the closing refresh still shows the old container")
+    #expect(store.isStillUpdatingOnServer(old))
+    #expect(store.containersWithUpdates.isEmpty, "Update All must leave it out")
+
+    await store.update(old)
+    await store.updateAll()
+    #expect(repository.updateCallCount == 1, "a second update reached the server while the first still pulls")
+
+    clock += 10 * 60 + 1
+    await store.refresh()
+    #expect(!store.isStillUpdatingOnServer(old), "the state must end after ten minutes")
+    #expect(store.containersWithUpdates == [old])
+  }
+
   /// A pull takes minutes, so the 30 s poll can show the recreated container,
   /// under its new ID, before the mutation answers. The detail screen still
   /// holds the old ID and must not read "Container Not Found".
@@ -498,7 +531,10 @@ private final class StubDockerRepository: DockerRepositoryProtocol, @unchecked S
   func pause(id: String) async throws -> ContainerStateUpdate { try nextActionResult() }
   func unpause(id: String) async throws -> ContainerStateUpdate { try nextActionResult() }
 
+  private(set) var updateCallCount = 0
+
   func update(id: String) async throws -> Container {
+    updateCallCount += 1
     precondition(!updateResults.isEmpty, "update(id:) called more times than results were stubbed")
     switch updateResults.removeFirst() {
     case .success(let container): return container

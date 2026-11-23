@@ -255,6 +255,8 @@ private struct ContainerActionsSection: View {
 
   private var isInFlight: Bool { store.isBusy(container) }
   private var isUpdating: Bool { store.isUpdating(container) }
+  /// The last update timed out on the client and the server may still pull.
+  private var isStillUpdating: Bool { store.isStillUpdatingOnServer(container) }
   /// This container's entry in the last update run, if it had one.
   private var updateResult: ContainerUpdateReport.Entry? {
     store.updateReport?.entries.first { $0.containerName == container.displayName }
@@ -339,16 +341,18 @@ private struct ContainerActionsSection: View {
   /// Update, behind a confirmation like Stop and Restart: the container stops
   /// and is recreated. Its confirm button has no destructive role, because the
   /// container comes back. While the update runs, the row reads "Updating…"
-  /// with a spinner, because a pull can take minutes.
+  /// with a spinner, because a pull can take minutes. After a client timeout
+  /// it reads "Still updating on the server" and stays off, so a second
+  /// update cannot collide with the pull (`DockerStore.isStillUpdatingOnServer`).
   private var updateButton: some View {
     Button {
       pendingConfirmation = .update
     } label: {
       // Each branch a `Label` framed like `actionButton`'s, so the text
       // starts on the same column as the other actions.
-      if isUpdating {
+      if isUpdating || isStillUpdating {
         Label {
-          Text("Updating…")
+          Text(isUpdating ? "Updating…" : "Still updating on the server")
         } icon: {
           ProgressView()
         }
@@ -360,7 +364,7 @@ private struct ContainerActionsSection: View {
           .foregroundStyle(Color.accentColor)
       }
     }
-    .disabled(isInFlight || store.isUpdatingAll)
+    .disabled(isInFlight || store.isUpdatingAll || isStillUpdating)
     .accessibilityIdentifier("containerDetail.updateButton")
   }
 

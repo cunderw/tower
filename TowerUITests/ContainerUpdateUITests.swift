@@ -187,4 +187,23 @@ final class ContainerUpdateUITests: XCTestCase {
       "a failed update cleared the update marker")
     XCTAssertTrue(app.buttons["containerDetail.updateButton"].exists, "a failed update stopped offering Update")
   }
+
+  /// After a client timeout the server may still pull, so the container is
+  /// not offered a second update: the detail row says so and is off, and
+  /// Update All goes away with no other container to update.
+  func testATimedOutUpdateIsNotOfferedAgain() {
+    let app = launchOnDocker(state: "update-times-out")
+    updateWebtopFromItsDetailScreen(in: app)
+
+    XCTAssertTrue(
+      element("containerDetail.updateResult", labelContains: "still updating on the server", in: app)
+        .waitForExistence(timeout: 10),
+      "the detail screen showed no result for the timed-out update")
+    let update = app.buttons["containerDetail.updateButton"]
+    XCTAssertTrue(update.waitForExistence(timeout: 5), "the Update row disappeared")
+    XCTAssertTrue(
+      update.label.contains("Still updating on the server"), "the Update row read \"\(update.label)\"")
+    XCTAssertFalse(update.isEnabled, "Update was offered again while the server still pulls")
+    XCTAssertFalse(app.buttons["docker.updateAll"].exists, "Update All still offered the timed-out container")
+  }
 }

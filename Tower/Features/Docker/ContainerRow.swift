@@ -23,6 +23,10 @@ struct ContainerRow: View {
   /// Off while "Update All" runs, so one container is never updated twice at
   /// once. Defaults on, for the previews.
   var allowsUpdate = true
+  /// The last update timed out on the client and the server may still pull
+  /// (`DockerStore.isStillUpdatingOnServer`). The row shows the spinner and
+  /// offers no Update, so a second update cannot collide with the pull.
+  var isStillUpdating = false
   let onAction: (ContainerAction) -> Void
 
   /// Stop and Restart interrupt something the user is actively running —
@@ -60,7 +64,7 @@ struct ContainerRow: View {
             .accessibilityLabel(container.image)
         }
         Spacer()
-        if isInFlight {
+        if isInFlight || isStillUpdating {
           // Decorative only: announcing "busy" mid-VoiceOver-swipe with no
           // further action to take would be noise, not information. Not
           // asserted by a UI test — `FakeDockerRepository`
@@ -178,7 +182,7 @@ struct ContainerRow: View {
 
   /// Only `true` offers an update — `nil` means "not determined", as
   /// `updateBadge` says.
-  private var canUpdate: Bool { container.isUpdateAvailable == true }
+  private var canUpdate: Bool { container.isUpdateAvailable == true && !isStillUpdating }
 
   /// Every applicable action plus Pause/Unpause, and an "Open Web UI" link
   /// when the server reported one.

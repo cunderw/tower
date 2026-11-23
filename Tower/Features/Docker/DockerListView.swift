@@ -200,7 +200,8 @@ struct DockerListView: View {
         ContainerRow(
           container: container,
           isInFlight: store.isBusy(container),
-          allowsUpdate: !store.isUpdatingAll
+          allowsUpdate: !store.isUpdatingAll,
+          isStillUpdating: store.isStillUpdatingOnServer(container)
         ) { action in
           Task { await store.perform(action, on: container) }
         }

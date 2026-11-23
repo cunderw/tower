@@ -126,10 +126,28 @@ final class DockerStore: LoadingStore {
   /// or when the alias never comes because the client stopped waiting.
   private var updateNames: [Container.ID: String] = [:]
 
-  private let repository: any DockerRepositoryProtocol
+  /// Containers whose update the client stopped waiting for, by name. The
+  /// server goes on pulling, so a second `updateContainer` would collide with
+  /// it. See `isStillUpdatingOnServer(_:)`.
+  private var timedOutUpdates: [String: TimedOutUpdate] = [:]
 
-  init(repository: any DockerRepositoryProtocol) {
+  private struct TimedOutUpdate {
+    let containerID: Container.ID
+    let since: Date
+  }
+
+  /// How long a timed-out update keeps its container out of Update and Update
+  /// All. Long enough for a slow pull to finish; short enough that an update
+  /// that failed on the server can be tried again.
+  static let stillUpdatingWindow: TimeInterval = 10 * 60
+
+  private let repository: any DockerRepositoryProtocol
+  /// The clock. A test passes its own to step past `stillUpdatingWindow`.
+  private let now: () -> Date
+
+  init(repository: any DockerRepositoryProtocol, now: @escaping () -> Date = Date.init) {
     self.repository = repository
+    self.now = now
   }
 
   /// First load: `.loading` is correct, there is nothing on screen yet to
@@ -163,6 +181,7 @@ final class DockerStore: LoadingStore {
       }
       return containers
     }
+    pruneTimedOutUpdates()
   }
 
   /// Runs one `ContainerAction` against `container`, going through `mutate`
@@ -251,9 +270,32 @@ final class DockerStore: LoadingStore {
   /// off while it runs, so one container is never updated twice at once.
   var isUpdatingAll: Bool { updateProgress != nil }
 
-  /// The containers that report an update, in list order.
+  /// The containers that report an update and can be sent one, in list
+  /// order. Leaves out a container still updating on the server.
   var containersWithUpdates: [Container] {
-    state.value?.filter { $0.isUpdateAvailable == true } ?? []
+    state.value?.filter { $0.isUpdateAvailable == true && !isStillUpdatingOnServer($0) } ?? []
+  }
+
+  /// Whether `container`'s last update timed out on the client and the server
+  /// may still be pulling. True while the list still shows the same container
+  /// (same ID, update still available) and `stillUpdatingWindow` has not
+  /// passed. A recreated container has a new ID, so the state ends as soon as
+  /// a refresh shows it.
+  func isStillUpdatingOnServer(_ container: Container) -> Bool {
+    guard let timedOut = timedOutUpdates[container.displayName],
+          timedOut.containerID == container.id,
+          container.isUpdateAvailable == true
+    else { return false }
+    return now().timeIntervalSince(timedOut.since) < Self.stillUpdatingWindow
+  }
+
+  /// Drops every timed-out update the list no longer bears out: a new ID, no
+  /// update available, the container gone, or the window passed.
+  private func pruneTimedOutUpdates() {
+    let containers = state.value ?? []
+    timedOutUpdates = timedOutUpdates.filter { name, _ in
+      containers.contains { $0.displayName == name && isStillUpdatingOnServer($0) }
+    }
   }
 
   /// The container `id` names, or the one an update recreated from it.
@@ -281,7 +323,7 @@ final class DockerStore: LoadingStore {
   /// Updates one container: pulls its latest image and recreates it. Then
   /// refreshes the list, which is what the server shows after the recreate.
   func update(_ container: Container) async {
-    guard !isBusy(container), !isUpdatingAll else { return }
+    guard !isBusy(container), !isUpdatingAll, !isStillUpdatingOnServer(container) else { return }
     updateReport = nil
     let outcome = await runUpdate(container)
     finishUpdateRun([.init(containerName: container.displayName, outcome: outcome)])
@@ -341,10 +383,12 @@ final class DockerStore: LoadingStore {
       if let containers = state.value {
         await mutate { Self.replacing(container, with: updated, in: containers) }
       }
+      timedOutUpdates[name] = nil
       outcome = .updated
     } catch {
       let appError = AppError.wrapping(error)
       if case .stillRunning = appError {
+        timedOutUpdates[name] = TimedOutUpdate(containerID: container.id, since: now())
         outcome = .stillRunning
       } else {
         outcome = .failed(appError)
