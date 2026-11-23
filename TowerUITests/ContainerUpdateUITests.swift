@@ -9,10 +9,11 @@ import XCTest
 /// a new ID, and that ID change is what these tests exist to cover: a screen
 /// that held the old ID must stay on the container.
 ///
-/// The row's swipe action is not driven here. In the iPad split view's narrow
-/// list column a swipe commits the first trailing action (Restart) instead of
-/// parking the row open (CLAUDE.md, "iPad"), so a swipe test would test the
-/// column width. `DockerStoreTests` covers the store path both controls share.
+/// The row's swipe action is driven on iPhone only. In the iPad split view's
+/// narrow list column a swipe commits the first trailing action (Restart)
+/// instead of parking the row open (CLAUDE.md, "iPad"), so an iPad swipe test
+/// would test the column width. `DockerStoreTests` covers the store path every
+/// control shares.
 @MainActor
 final class ContainerUpdateUITests: XCTestCase {
   override func setUp() {
@@ -139,6 +140,40 @@ final class ContainerUpdateUITests: XCTestCase {
     XCTAssertFalse(
       app.descendants(matching: .any)["docker.updateReport"].waitForExistence(timeout: 2),
       "Dismiss left the result on screen")
+  }
+
+  /// The row's trailing swipe offers Update for a container with one. iPhone
+  /// only: see this class's doc comment for the iPad split column.
+  ///
+  /// A partial drag, not `swipeLeft()`: a full swipe commits the first
+  /// trailing action, which is Restart.
+  func testRowSwipeUpdatesTheContainer() throws {
+    try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "a swipe in the split column commits Restart")
+    let app = launchOnDocker()
+    let webtop = row("uitest-container-3", in: app)
+    XCTAssertTrue(webtop.waitForExistence(timeout: 10), "webtop never appeared")
+
+    let update = app.buttons.matching(
+      NSPredicate(format: "identifier == 'docker.swipe.update' OR label == 'Update'")
+    ).firstMatch
+    // A drag that ends early can fall short of opening the row. Try twice.
+    for _ in 0..<2 where !update.exists {
+      webtop.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        .press(forDuration: 0.05, thenDragTo: webtop.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: 0.5)))
+      _ = update.waitForExistence(timeout: 2)
+    }
+    XCTAssertTrue(update.exists, "the row's swipe offered no Update")
+    XCTAssertFalse(app.buttons["Restart webtop?"].exists, "the drag committed Restart")
+    update.tap()
+
+    let confirm = app.buttons["Update webtop?"]
+    XCTAssertTrue(confirm.waitForExistence(timeout: 5), "the swipe's Update asked for no confirmation")
+    confirm.tap()
+
+    XCTAssertTrue(
+      element("docker.updateReport", labelContains: "Updated webtop.", in: app).waitForExistence(timeout: 10),
+      "the list showed no result for the update")
+    XCTAssertTrue(row("uitest-container-3-updated", in: app).exists, "the list never showed the recreated container")
   }
 
   /// A failed update shows the server's own message, and the container keeps

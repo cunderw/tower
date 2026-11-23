@@ -270,6 +270,8 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
 
   /// `UITEST_DOCKER_STATE=update-fails`: every update fails with this server
   /// message, so a test can assert the message reaches the screen.
+  /// `update-times-out` throws what `LiveDockerRepository.update(id:)` throws
+  /// when the client stops waiting.
   static let updateFailureMessage = "Error pulling image: manifest unknown"
 
   private static var dockerState: String? {
@@ -288,6 +290,9 @@ struct FakeDockerRepository: DockerRepositoryProtocol {
     try failIfActionFailureFixture(id)
     if Self.dockerState == "update-fails" {
       throw AppError.graphQL([Self.updateFailureMessage])
+    }
+    if Self.dockerState == "update-times-out" {
+      throw AppError.stillRunning("The update is still running on the server.")
     }
     guard let container = Self.fixtures().first(where: { $0.id == id }) else {
       throw AppError.graphQL(["No such container: \(id)"])
@@ -514,8 +519,8 @@ private final class UpdatedContainerIDs: @unchecked Sendable {
 /// behaviour *across* calls): `unavailable` returns `nil` domains — the
 /// "VM manager isn't reporting" state that must not read as "no VMs" — `empty`
 /// returns `[]`, and anything else returns the five fixtures.
-/// Unlike `FakeDockerRepository`, this one **mutates in memory**: the VM
-/// actions return `Boolean!`, so `VMStore.perform(_:on:)` re-fetches
+/// Unlike `FakeDockerRepository`'s five state actions, this one **mutates in
+/// memory**: the VM actions return `Boolean!`, so `VMStore.perform(_:on:)` re-fetches
 /// `domains()` instead of merging a returned state (see its doc comment). A
 /// fake whose `domains()` answered the same thing forever would make every
 /// action look like a no-op, and a UI test asserting "the row reflects the
