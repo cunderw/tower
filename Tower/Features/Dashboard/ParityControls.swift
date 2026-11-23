@@ -42,11 +42,21 @@ struct ParityControls: View {
     .disabled(actionInFlight != nil)
   }
 
+  /// Icon and title at a fixed spacing. A plain `Label` inside a `List` row
+  /// takes the list's icon column, which spreads the two apart on the Parity
+  /// screen while the hero card keeps them together.
+  private func label(_ action: ParityAction, systemImage: String) -> some View {
+    HStack(spacing: 6) {
+      Image(systemName: systemImage)
+      Text(action.title)
+    }
+  }
+
   @ViewBuilder
   private func button(for action: ParityAction) -> some View {
     switch action {
     case .start:
-      Button(action.title, systemImage: "play.fill") { isConfirmingStart = true }
+      Button { isConfirmingStart = true } label: { label(action, systemImage: "play.fill") }
         .accessibilityIdentifier("parity.action.start")
         // On the button, not the container, so the iPad popover points at it.
         .confirmationDialog(
@@ -62,13 +72,13 @@ struct ParityControls: View {
           )
         }
     case .pause:
-      Button(action.title, systemImage: "pause.fill") { perform(.pause, false) }
+      Button { perform(.pause, false) } label: { label(action, systemImage: "pause.fill") }
         .accessibilityIdentifier("parity.action.pause")
     case .resume:
-      Button(action.title, systemImage: "play.fill") { perform(.resume, false) }
+      Button { perform(.resume, false) } label: { label(action, systemImage: "play.fill") }
         .accessibilityIdentifier("parity.action.resume")
     case .cancel:
-      Button(action.title, systemImage: "xmark", role: .destructive) { isConfirmingCancel = true }
+      Button(role: .destructive) { isConfirmingCancel = true } label: { label(action, systemImage: "xmark") }
         .accessibilityIdentifier("parity.action.cancel")
         .confirmationDialog(
           "Cancel the parity check?", isPresented: $isConfirmingCancel, titleVisibility: .visible

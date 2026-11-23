@@ -38,8 +38,7 @@ struct DemoDataTests {
     #expect(dates.count == history.count, "every demo row has a date")
     #expect(dates == dates.sorted(by: >), "the history is not newest first")
     #expect(history.map(\.id) == Array(0..<history.count))
-    let newest = try? #require(dates.first)
-    #expect((newest?.timeIntervalSinceNow ?? -.infinity) > -45 * 24 * 60 * 60, "the newest check is over 45 days old")
+    #expect((dates.first?.timeIntervalSinceNow ?? -.infinity) > -45 * 24 * 60 * 60, "the newest check is over 45 days old")
     // A list of identical clean rows teaches a reviewer nothing.
     #expect(history.contains { ($0.errors ?? 0) > 0 })
     #expect(history.contains { $0.state == .cancelled })
