@@ -138,6 +138,64 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
   }
 }
 
+/// The dashboard's live stream under `--uitest-seed-dashboard`.
+/// `UITEST_DASHBOARD_STATE` selects the mode in `TowerApp`, alongside the
+/// repository's outcome.
+struct FakeMetricsStream: MetricsStreaming {
+  enum Mode {
+    /// Sends nothing and stays open until cancelled. The default, so every
+    /// class that asserts the fixture's polled 12% CPU and 88% memory still
+    /// sees them.
+    case silent
+    /// `live-metrics`: once a second, CPU alternates between 47% and 53%,
+    /// memory reads 30%, and the CPU temperature reads 52°C. Alternating, as
+    /// `.diskTempOscillates` does, so whatever the gauge shows when a test
+    /// looks, the next reading is something else.
+    case live
+    /// `live-metrics-no-sensor`: `.live`, but the server reports no CPU
+    /// sensor, so the temperature row stays hidden.
+    case liveWithoutSensor
+    /// `live-metrics-fails`: one CPU reading of 47% and a temperature, then
+    /// after `failureDelay` the stream fails. Long enough for a test to see
+    /// the live value before the fallback.
+    case failsAfterOne
+  }
+
+  static let failureDelay = Duration.seconds(5)
+
+  let mode: Mode
+
+  func liveMetrics() -> AsyncThrowingStream<LiveMetricsUpdate, any Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        let temperature = LiveMetricsUpdate.cpuTemperature(
+          TemperatureReading(value: 52, unit: .celsius))
+        switch mode {
+        case .silent:
+          // An hour, i.e. never within a test. Cancellation ends it early.
+          try? await Task.sleep(for: .seconds(3_600))
+        case .live, .liveWithoutSensor:
+          var tick = 0
+          repeat {
+            continuation.yield(.cpu(percent: tick.isMultiple(of: 2) ? 47 : 53))
+            continuation.yield(
+              .memory(percent: 30, usedBytes: 9_600_000_000, totalBytes: 32_000_000_000))
+            continuation.yield(mode == .live ? temperature : .cpuTemperature(nil))
+            tick += 1
+          } while (try? await Task.sleep(for: .seconds(1))) != nil
+        case .failsAfterOne:
+          continuation.yield(.cpu(percent: 47))
+          continuation.yield(temperature)
+          try? await Task.sleep(for: Self.failureDelay)
+          continuation.finish(throwing: AppError.serverUnreachable)
+        }
+        continuation.finish()
+      }
+      continuation.onTermination = { _ in task.cancel() }
+    }
+  }
+}
+
 /// `FakeSystemRepository`'s parity check: the status the dashboard reports
 /// and the history the Parity screen lists. A cancelled check adds a history
 /// row, as it does on a real server.

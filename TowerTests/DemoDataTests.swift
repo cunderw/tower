@@ -156,4 +156,21 @@ struct DemoDataTests {
 
     #expect(try await second.containers().first { $0.id == running.id }?.isRunning == true)
   }
+
+  // The screenshot tour photographs the dashboard about a second after it
+  // loads. The live stream must read what the snapshot reads until well after
+  // that, or the store screenshots change with every capture.
+  @Test func theDemoStreamHoldsTheSnapshotsReadingForItsFirstFiveTicks() throws {
+    let system = try #require(DemoData.array.system)
+    for tick in 0..<5 {
+      let updates = DemoMetricsRepository.updates(at: tick)
+      #expect(updates.contains(.cpu(percent: try #require(system.cpuPercent))))
+      #expect(updates.contains(.memory(
+        percent: try #require(system.memoryPercent),
+        usedBytes: try #require(system.memoryUsedBytes),
+        totalBytes: try #require(system.memoryTotalBytes)
+      )))
+    }
+    #expect(DemoMetricsRepository.updates(at: 5) != DemoMetricsRepository.updates(at: 0))
+  }
 }

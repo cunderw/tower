@@ -22,10 +22,89 @@ final class DashboardStore: LoadingStore {
   /// guard as `VMStore` and `DockerStore`.
   private var mutationSequence = 0
 
-  private let repository: any SystemRepositoryProtocol
+  /// Live CPU, memory and CPU temperature over the polled snapshot (issue
+  /// #24). Kept apart from `state`, so a poll never overwrites a live value
+  /// and a live value never reaches `.actionFailed` or the parity guard.
+  ///
+  /// Empty whenever no stream runs. The 30 s poll stays on beside the stream,
+  /// because the array, the disks and the service counts come only from it.
+  private(set) var liveMetrics = LiveMetrics()
 
-  init(repository: any SystemRepositoryProtocol) {
+  /// One pending expiry per metric. Each update replaces its metric's task.
+  private var expiries: [LiveMetric: Task<Void, Never>] = [:]
+  /// Bumped by each `streamLiveMetrics()` call; see its cleanup.
+  private var streamGeneration = 0
+
+  private let repository: any SystemRepositoryProtocol
+  private let metrics: any MetricsStreaming
+  private let staleAfter: [LiveMetric: Duration]
+  private let sleep: @Sendable (Duration) async throws -> Void
+
+  /// - Parameters:
+  ///   - staleAfter: How long a live value stays on screen with no new
+  ///     reading. About three times each metric's measured cadence (CPU 1 s,
+  ///     memory 2 s, temperature 5 s), so one late reading does not flicker
+  ///     the polled value in, and a stream that has gone quiet without closing
+  ///     does not freeze an old reading on screen.
+  ///   - sleep: Injected, as `poll` injects it, so tests use no real time.
+  init(
+    repository: any SystemRepositoryProtocol,
+    metrics: any MetricsStreaming,
+    staleAfter: [LiveMetric: Duration] = [
+      .cpu: .seconds(3), .memory: .seconds(6), .cpuTemperature: .seconds(15),
+    ],
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+  ) {
     self.repository = repository
+    self.metrics = metrics
+    self.staleAfter = staleAfter
+    self.sleep = sleep
+  }
+
+  /// The polled reading with the live values on top.
+  func system(for snapshot: DashboardSnapshot) -> SystemInfo? {
+    snapshot.array.system?.overlaid(with: liveMetrics)
+  }
+
+  /// Applies live readings until the stream ends or the caller's task is
+  /// cancelled, then clears them so the polled values show again.
+  ///
+  /// **Silent on failure.** A stream error never reaches `state`: no red
+  /// text, and no `.actionFailed`. The dashboard falls back to its poll, which
+  /// is the same number a few seconds older. Nothing restarts a failed stream
+  /// until the caller runs this again (the tab is reselected or the app
+  /// returns to the foreground).
+  func streamLiveMetrics() async {
+    streamGeneration += 1
+    let generation = streamGeneration
+    do {
+      for try await update in metrics.liveMetrics() {
+        liveMetrics.apply(update)
+        expire(update.metric)
+      }
+    } catch {
+      // Deliberately ignored; see above.
+    }
+    // A tab switch cancels one stream and starts the next at the same time.
+    // The old stream's cleanup must not clear the new stream's readings.
+    guard generation == streamGeneration else { return }
+    for task in expiries.values { task.cancel() }
+    expiries = [:]
+    liveMetrics = LiveMetrics()
+  }
+
+  /// Clears `metric` if no newer reading arrives within its `staleAfter`.
+  private func expire(_ metric: LiveMetric) {
+    expiries[metric]?.cancel()
+    let delay = staleAfter[metric] ?? .seconds(15)
+    expiries[metric] = Task { [weak self, sleep] in
+      do { try await sleep(delay) } catch { return }
+      // A newer reading cancelled this expiry. A test's `sleep` may return
+      // normally after a cancel, so check rather than trust the throw.
+      guard !Task.isCancelled, let self else { return }
+      liveMetrics.clear(metric)
+      expiries[metric] = nil
+    }
   }
 
   /// First load: `.loading` is correct, there is nothing on screen yet to

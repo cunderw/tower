@@ -9,14 +9,14 @@ struct DashboardStoreTests {
   @Test func loadsDashboardSnapshot() async {
     let snapshot = DashboardSnapshot.fixture(state: "STARTED")
     let repository = StubDashboardRepository(results: [.success(snapshot)])
-    let store = DashboardStore(repository: repository)
+    let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
     await store.load()
     #expect(store.state.value?.array.state == "STARTED")
   }
 
   @Test func surfacesFailuresAsAppError() async {
     let repository = StubDashboardRepository(results: [.failure(.unauthorized)])
-    let store = DashboardStore(repository: repository)
+    let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
     await store.load()
     #expect(store.state.error == .unauthorized)
   }
@@ -31,7 +31,7 @@ struct DashboardStoreTests {
       .success(snapshot),
       .failure(.serverUnreachable),
     ])
-    let store = DashboardStore(repository: repository)
+    let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
     await store.load()
     await store.refresh()
     #expect(store.state.value == snapshot)
@@ -45,7 +45,7 @@ struct DashboardStoreTests {
     let paused = DashboardSnapshot.fixture(state: "STARTED", parity: .paused)
     let repository = GatedDashboardRepository(dashboardResults: [.success(paused)])
     await repository.gate.releaseAll()
-    let store = DashboardStore(repository: repository)
+    let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
     store.state = .loaded(running)
 
     await store.perform(.pause)
@@ -60,7 +60,7 @@ struct DashboardStoreTests {
       let idle = DashboardSnapshot.fixture(state: "STARTED", parity: .completed)
       let repository = GatedDashboardRepository(dashboardResults: [.success(idle)])
       await repository.gate.releaseAll()
-      let store = DashboardStore(repository: repository)
+      let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
       store.state = .loaded(idle)
 
       await store.perform(.start, correct: correct)
@@ -76,7 +76,7 @@ struct DashboardStoreTests {
       actionResult: .failure(.graphQL(["Array must be started to check parity"]))
     )
     await repository.gate.releaseAll()
-    let store = DashboardStore(repository: repository)
+    let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
     store.state = .loaded(running)
 
     await store.perform(.cancel)
@@ -93,7 +93,7 @@ struct DashboardStoreTests {
     let running = DashboardSnapshot.fixture(state: "STARTED", parity: .running)
     let repository = GatedDashboardRepository(dashboardResults: [.failure(.serverUnreachable)])
     await repository.gate.releaseAll()
-    let store = DashboardStore(repository: repository)
+    let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
     store.state = .loaded(running)
 
     await store.perform(.cancel)
@@ -106,7 +106,7 @@ struct DashboardStoreTests {
   @Test func aSecondParityActionWhileOneIsInFlightIsIgnored() async {
     let running = DashboardSnapshot.fixture(state: "STARTED", parity: .running)
     let repository = GatedDashboardRepository(dashboardResults: [.success(running)])
-    let store = DashboardStore(repository: repository)
+    let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
     store.state = .loaded(running)
 
     let first = Task { await store.perform(.pause) }
@@ -129,7 +129,7 @@ struct DashboardStoreTests {
     let running = DashboardSnapshot.fixture(state: "STARTED", parity: .running)
     let paused = DashboardSnapshot.fixture(state: "STARTED", parity: .paused)
     let repository = GatedDashboardRepository(dashboardResults: [.success(running), .success(paused)])
-    let store = DashboardStore(repository: repository)
+    let store = DashboardStore(repository: repository, metrics: ScriptedMetricsStream())
     store.state = .loaded(running)
 
     let poll = Task { await store.refresh() }
@@ -147,6 +147,217 @@ struct DashboardStoreTests {
 
     #expect(store.state.value?.parity.state == .paused, "a poll issued before the action must not revert it")
     #expect(store.state.error == nil)
+  }
+}
+
+// MARK: - Live metrics (issue #24)
+
+@MainActor
+struct DashboardLiveMetricsTests {
+  private static func system(cpu: Double, memory: Double) -> SystemInfo {
+    SystemInfo(
+      distro: nil, release: nil, bootTimestamp: nil, cpuBrand: nil, cpuCores: 8, cpuThreads: 16,
+      cpuPercent: cpu, memoryPercent: memory,
+      memoryUsedBytes: 28_000_000_000, memoryTotalBytes: 32_000_000_000
+    )
+  }
+
+  private let polled = DashboardSnapshot.fixture(
+    state: "STARTED", system: Self.system(cpu: 12, memory: 88))
+  private let celsius52 = TemperatureReading(value: 52, unit: .celsius)
+
+  /// Yields to the main actor until `condition` holds or 1,000 yields pass.
+  /// Callers `#expect` the condition afterwards, so running out is a failure.
+  private func settle(_ condition: () -> Bool) async {
+    for _ in 0..<1_000 where !condition() { await Task.yield() }
+  }
+
+  @Test func liveReadingsShowOverThePolledSnapshotAndLeaveStateAlone() async {
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(repository: StubDashboardRepository(results: []), metrics: metrics)
+    store.state = .loaded(polled)
+    let streaming = Task { await store.streamLiveMetrics() }
+
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpu(percent: 47))
+    metrics.continuation(0).yield(.cpuTemperature(celsius52))
+    await settle { store.liveMetrics.cpuTemperature != nil }
+
+    #expect(store.system(for: polled)?.cpuPercent == 47)
+    #expect(store.system(for: polled)?.memoryPercent == 88)
+    #expect(store.liveMetrics.cpuTemperature == celsius52)
+    #expect(store.state == .loaded(polled))
+    streaming.cancel()
+    await streaming.value
+  }
+
+  // The poll stays on for the array, disks and counts. Its CPU reading is
+  // older than the stream's, so it must not replace the live value.
+  @Test func aPollDoesNotOverwriteALiveValue() async {
+    let newer = DashboardSnapshot.fixture(state: "STARTED", system: Self.system(cpu: 20, memory: 80))
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(
+      repository: StubDashboardRepository(results: [.success(newer)]), metrics: metrics)
+    store.state = .loaded(polled)
+    let streaming = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpu(percent: 47))
+    await settle { store.liveMetrics.cpuPercent != nil }
+
+    await store.refresh()
+
+    #expect(store.state == .loaded(newer))
+    #expect(store.system(for: newer)?.cpuPercent == 47)
+    #expect(store.system(for: newer)?.memoryPercent == 80)
+    streaming.cancel()
+    await streaming.value
+  }
+
+  @Test func aStreamThatEndsLeavesThePolledValues() async {
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(repository: StubDashboardRepository(results: []), metrics: metrics)
+    store.state = .loaded(polled)
+    let streaming = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpu(percent: 47))
+    metrics.continuation(0).yield(.cpuTemperature(celsius52))
+
+    metrics.continuation(0).finish()
+    await streaming.value
+
+    #expect(store.liveMetrics.isEmpty)
+    #expect(store.system(for: polled)?.cpuPercent == 12)
+  }
+
+  // The acceptance criterion: a websocket failure shows no alarming
+  // message. `.actionFailed` is what renders the dashboard's red caption.
+  @Test func aStreamFailureFallsBackSilently() async {
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(repository: StubDashboardRepository(results: []), metrics: metrics)
+    store.state = .loaded(polled)
+    let streaming = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpu(percent: 47))
+
+    metrics.continuation(0).finish(throwing: AppError.serverUnreachable)
+    await streaming.value
+
+    #expect(store.state == .loaded(polled))
+    #expect(store.state.error == nil)
+    #expect(store.liveMetrics.isEmpty)
+  }
+
+  // Leaving the tab or backgrounding the app cancels the `.task`.
+  @Test func cancellingTheStreamClearsTheLiveValues() async {
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(repository: StubDashboardRepository(results: []), metrics: metrics)
+    let streaming = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpu(percent: 47))
+    await settle { store.liveMetrics.cpuPercent != nil }
+
+    streaming.cancel()
+    await streaming.value
+
+    #expect(store.liveMetrics.isEmpty)
+  }
+
+  // A stream that goes quiet without closing must not freeze an old reading
+  // on screen. Each metric expires on its own cadence.
+  @Test func aQuietMetricExpiresWithoutTheOthers() async {
+    let cpuClock = Gate()
+    let memoryClock = Gate()
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(
+      repository: StubDashboardRepository(results: []), metrics: metrics,
+      staleAfter: [.cpu: .seconds(1), .memory: .seconds(2), .cpuTemperature: .seconds(3)],
+      sleep: { delay in
+        if delay == .seconds(1) { await cpuClock.enter() } else { await memoryClock.enter() }
+      }
+    )
+    let streaming = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpu(percent: 47))
+    metrics.continuation(0).yield(.memory(percent: 50, usedBytes: 1, totalBytes: 2))
+    await cpuClock.waitUntilEntered(atLeast: 1)
+    await memoryClock.waitUntilEntered(atLeast: 1)
+
+    await cpuClock.release(0)
+    await settle { store.liveMetrics.cpuPercent == nil }
+
+    #expect(store.liveMetrics.cpuPercent == nil)
+    #expect(store.liveMetrics.memory?.percent == 50)
+    streaming.cancel()
+    await streaming.value
+  }
+
+  @Test func aNewReadingPostponesItsMetricsExpiry() async {
+    let clock = Gate()
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(
+      repository: StubDashboardRepository(results: []), metrics: metrics,
+      sleep: { _ in await clock.enter() }
+    )
+    let streaming = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    metrics.continuation(0).yield(.cpu(percent: 47))
+    await clock.waitUntilEntered(atLeast: 1)
+    metrics.continuation(0).yield(.cpu(percent: 50))
+    await clock.waitUntilEntered(atLeast: 2)
+
+    // The first reading's expiry wakes, but the second reading replaced it.
+    await clock.release(0)
+    for _ in 0..<100 { await Task.yield() }
+    #expect(store.liveMetrics.cpuPercent == 50)
+
+    await clock.release(1)
+    await settle { store.liveMetrics.cpuPercent == nil }
+    #expect(store.liveMetrics.cpuPercent == nil)
+    streaming.cancel()
+    await streaming.value
+  }
+
+  // A tab switch cancels one stream and starts the next together. The old
+  // stream's cleanup lands second and must not wipe the new readings.
+  @Test func anOldStreamsCleanupLeavesANewStreamsReadings() async {
+    let metrics = ScriptedMetricsStream()
+    let store = DashboardStore(repository: StubDashboardRepository(results: []), metrics: metrics)
+    let first = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(0)
+    let second = Task { await store.streamLiveMetrics() }
+    await metrics.waitForCall(1)
+    metrics.continuation(1).yield(.cpu(percent: 47))
+    await settle { store.liveMetrics.cpuPercent != nil }
+
+    metrics.continuation(0).finish()
+    await first.value
+
+    #expect(store.liveMetrics.cpuPercent == 47)
+    second.cancel()
+    await second.value
+  }
+}
+
+/// A live stream each test drives by hand. Every `liveMetrics()` call makes a
+/// new stream, so a test can hold two at once.
+final class ScriptedMetricsStream: MetricsStreaming, @unchecked Sendable {
+  typealias Continuation = AsyncThrowingStream<LiveMetricsUpdate, any Error>.Continuation
+  private let lock = NSLock()
+  private var continuations: [Continuation] = []
+
+  func liveMetrics() -> AsyncThrowingStream<LiveMetricsUpdate, any Error> {
+    let (stream, continuation) = AsyncThrowingStream<LiveMetricsUpdate, any Error>.makeStream()
+    lock.withLock { continuations.append(continuation) }
+    return stream
+  }
+
+  func continuation(_ index: Int) -> Continuation {
+    lock.withLock { continuations[index] }
+  }
+
+  /// Yields until `liveMetrics()` has been called `index + 1` times.
+  func waitForCall(_ index: Int) async {
+    while lock.withLock({ continuations.count }) <= index { await Task.yield() }
   }
 }
 
@@ -274,11 +485,13 @@ private final class GatedDashboardRepository: SystemRepositoryProtocol, @uncheck
 }
 
 extension DashboardSnapshot {
-  fileprivate static func fixture(state: String, parity: ParityCheckState = .neverRun) -> DashboardSnapshot {
+  fileprivate static func fixture(
+    state: String, parity: ParityCheckState = .neverRun, system: SystemInfo? = nil
+  ) -> DashboardSnapshot {
     DashboardSnapshot(
       array: ArrayStatus(
         state: state, capacity: ArrayCapacity(free: 1, used: 3, total: 4),
-        disks: [], parities: [], caches: [], system: nil
+        disks: [], parities: [], caches: [], system: system
       ),
       parity: ParityStatus(
         state: parity, progressPercent: nil, errors: nil,

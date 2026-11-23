@@ -56,6 +56,9 @@ struct DashboardView: View {
     // which is where the `#if DEBUG` `UITEST_POLL_INTERVAL_MS` override
     // lives, shared with every other polling screen.
     .pollingRefresh(isActive: isSelected) { await store.refresh() }
+    // Live CPU, memory and temperature beside the poll, on the same key, so
+    // the stream stops when the tab leaves and when the app backgrounds.
+    .whileVisible(isActive: isSelected) { await store.streamLiveMetrics() }
   }
 
   @ViewBuilder
@@ -110,7 +113,10 @@ struct DashboardView: View {
               Task { await store.perform(action, correct: correct) }
             }
           )
-          SystemMetricsCard(system: snapshot.array.system)
+          SystemMetricsCard(
+            system: store.system(for: snapshot),
+            cpuTemperature: store.liveMetrics.cpuTemperature
+          )
           ServicesCard(counts: snapshot.services, onSelect: onSelectTab)
           // Each group is skipped entirely when empty — `DiskListCard` has
           // no "no disks" state of its own to fall back on, and a card with

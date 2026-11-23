@@ -51,6 +51,37 @@ extension View {
     isActive: Bool,
     action: @escaping () async -> Void
   ) -> some View { modifier(PollingRefresh(interval: interval, isActive: isActive, action: action)) }
+
+  /// Runs `action` once while `isActive` and the app is in the foreground,
+  /// and cancels it when either stops. For a long-running listener such as a
+  /// live stream, which runs until cancelled rather than once per interval.
+  ///
+  /// Keyed exactly as `pollingRefresh` is, so a stream beside a poll starts
+  /// and stops with it.
+  func whileVisible(
+    isActive: Bool,
+    action: @escaping () async -> Void
+  ) -> some View { modifier(WhileVisible(isActive: isActive, action: action)) }
+}
+
+/// The `.task(id:)` key both modifiers share.
+private struct VisibilityKey: Hashable {
+  let isActive: Bool
+  let scenePhase: ScenePhase
+}
+
+private struct WhileVisible: ViewModifier {
+  let isActive: Bool
+  let action: () async -> Void
+
+  @Environment(\.scenePhase) private var scenePhase
+
+  func body(content: Content) -> some View {
+    content.task(id: VisibilityKey(isActive: isActive, scenePhase: scenePhase)) {
+      guard isActive, scenePhase == .active else { return }
+      await action()
+    }
+  }
 }
 
 /// The `View`-side half of the refresh policy: decides *when* the `TowerCore
@@ -68,13 +99,8 @@ private struct PollingRefresh: ViewModifier {
 
   @Environment(\.scenePhase) private var scenePhase
 
-  private struct TaskKey: Hashable {
-    let isActive: Bool
-    let scenePhase: ScenePhase
-  }
-
   func body(content: Content) -> some View {
-    content.task(id: TaskKey(isActive: isActive, scenePhase: scenePhase)) {
+    content.task(id: VisibilityKey(isActive: isActive, scenePhase: scenePhase)) {
       guard isActive, scenePhase == .active else { return }
       await poll(every: interval, action: action)
     }
