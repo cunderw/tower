@@ -155,10 +155,11 @@ struct FakeMetricsStream: MetricsStreaming {
     /// `live-metrics-no-sensor`: `.live`, but the server reports no CPU
     /// sensor, so the temperature row stays hidden.
     case liveWithoutSensor
-    /// `live-metrics-fails`: one CPU reading of 47% and a temperature, then
-    /// after `failureDelay` the stream fails. Long enough for a test to see
-    /// the live value before the fallback.
-    case failsAfterOne
+    /// `live-metrics-fails`: CPU 47% and a temperature once a second for
+    /// `failureDelay`, then the stream fails. Long enough for a test to see
+    /// the live value before the fallback, and a reading every second so the
+    /// store's staleness check does not clear it first.
+    case failsAfterDelay
   }
 
   static let failureDelay = Duration.seconds(5)
@@ -183,10 +184,13 @@ struct FakeMetricsStream: MetricsStreaming {
             continuation.yield(mode == .live ? temperature : .cpuTemperature(nil))
             tick += 1
           } while (try? await Task.sleep(for: .seconds(1))) != nil
-        case .failsAfterOne:
-          continuation.yield(.cpu(percent: 47))
-          continuation.yield(temperature)
-          try? await Task.sleep(for: Self.failureDelay)
+        case .failsAfterDelay:
+          let start = ContinuousClock.now
+          repeat {
+            continuation.yield(.cpu(percent: 47))
+            continuation.yield(temperature)
+          } while ContinuousClock.now - start < Self.failureDelay
+            && (try? await Task.sleep(for: .seconds(1))) != nil
           continuation.finish(throwing: AppError.serverUnreachable)
         }
         continuation.finish()

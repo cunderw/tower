@@ -140,7 +140,7 @@ struct TowerApp: App {
         metricsMode = .liveWithoutSensor
       case "live-metrics-fails":
         outcome = .success
-        metricsMode = .failsAfterOne
+        metricsMode = .failsAfterDelay
       default: outcome = .success
       }
       environment.makeRepository = { _ in FakeSystemRepository(outcome: outcome) }

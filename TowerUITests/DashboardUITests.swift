@@ -101,6 +101,15 @@ final class DashboardUITests: XCTestCase {
     "\(element.label) \((element.value as? String) ?? "")"
   }
 
+  /// Drags the dashboard up by about 40% of the screen on iPhone, so the whole
+  /// System card clears the tab bar before a screenshot. The iPad shows the
+  /// card in full without it. A drag, not `swipeUp()`, which flings past it.
+  private func revealSystemCard(in app: XCUIApplication) {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+    app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+      .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+  }
+
   /// `FakeMetricsStream`'s `.live` mode: CPU alternates 47% and 53% once a
   /// second over the fixture's polled 12%. Seeing both values proves the gauge
   /// follows the stream while the dashboard is on screen, not that it showed
@@ -122,6 +131,7 @@ final class DashboardUITests: XCTestCase {
     XCTAssertTrue(temperature.waitForExistence(timeout: 5), "the CPU temperature row never appeared")
     XCTAssertTrue(spokenText(of: temperature).contains("52°C"), "the CPU temperature row read \"\(spokenText(of: temperature))\"")
 
+    revealSystemCard(in: app)
     try saveScreenshot(named: "dashboard-system-live")
   }
 
@@ -139,6 +149,7 @@ final class DashboardUITests: XCTestCase {
       element(identifier: "dashboard.cpuTemperature", in: app).exists,
       "a server with no CPU sensor must not show a temperature row")
 
+    revealSystemCard(in: app)
     try saveScreenshot(named: "dashboard-system-no-sensor")
   }
 
