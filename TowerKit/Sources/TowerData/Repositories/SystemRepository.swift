@@ -25,13 +25,31 @@ public protocol SystemRepositoryProtocol: Sendable {
 
   /// Past parity checks, newest first. A row with no readable date sorts last.
   func parityHistory() async throws -> [ParityCheckRecord]
+
+  /// Starts or stops the array (issue #25). Returns the `ArrayState` raw value
+  /// the server reports when the call returns, which can still be the old
+  /// state while Unraid works, or `nil` when the request timed out. Throws on
+  /// a GraphQL error, such as "The array is already started".
+  ///
+  /// `passphrase` unlocks an encrypted array on start. It goes into this one
+  /// request and nowhere else.
+  func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String?
 }
 
 public struct LiveSystemRepository: SystemRepositoryProtocol {
-  private let provider: ApolloClientProvider
+  /// How long `setArrayState` waits for an answer. A start or stop can take
+  /// minutes on a large array, and nobody has measured whether Unraid answers
+  /// before the change is done, so this is far above the session's 60 s.
+  public static let defaultArrayStateTimeout: TimeInterval = 300
 
-  public init(provider: ApolloClientProvider) {
+  private let provider: ApolloClientProvider
+  private let arrayStateTimeout: TimeInterval
+
+  /// - Parameter arrayStateTimeout: How long `setArrayState` waits. A test
+  ///   passes a short one.
+  public init(provider: ApolloClientProvider, arrayStateTimeout: TimeInterval = defaultArrayStateTimeout) {
     self.provider = provider
+    self.arrayStateTimeout = arrayStateTimeout
   }
 
   public func testConnection() async throws -> Bool {
@@ -109,6 +127,40 @@ public struct LiveSystemRepository: SystemRepositoryProtocol {
     guard response.data != nil else {
       throw AppError.decoding("Empty response for \(Mutation.operationName).")
     }
+  }
+
+  /// One `setState` request with its own timeout. A request timeout overrides
+  /// the session's idle timeout in both directions, so the other requests keep
+  /// 60 s.
+  ///
+  /// `URLError.timedOut` returns `nil` here, not `.serverUnreachable`: the
+  /// server took the request, and the caller polls `dashboard()` to learn
+  /// what happened.
+  public func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String? {
+    let desiredState: ArrayStateInputState = switch action {
+    case .start: .start
+    case .stop: .stop
+    }
+    let input = ArrayStateInput(
+      desiredState: .case(desiredState),
+      decryptionPassword: passphrase.map { .some($0) } ?? .none
+    )
+    let response: GraphQLResponse<SetArrayStateMutation>
+    do {
+      response = try await provider.client.perform(
+        mutation: SetArrayStateMutation(input: input),
+        requestConfiguration: RequestConfiguration(requestTimeout: arrayStateTimeout)
+      )
+    } catch let error as URLError where error.code == .timedOut {
+      return nil
+    }
+    if let errors = response.errors, !errors.isEmpty {
+      throw AppError.from(graphQLErrors: errors)
+    }
+    guard let data = response.data else {
+      throw AppError.decoding("Empty response for SetArrayState.")
+    }
+    return data.array.setState.state.rawValue
   }
 
   /// A field error inside one history row does not fail the list. Unraid's

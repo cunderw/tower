@@ -9,6 +9,11 @@ struct ArrayHeroCard: View {
   var parityActionInFlight: ParityAction?
   /// Runs a parity action; the `Bool` is Start's correct-errors choice.
   var onParityAction: (ParityAction, Bool) -> Void = { _, _ in }
+  /// The array action in flight, which replaces its button with a progress
+  /// line and disables the parity controls too.
+  var arrayActionInFlight: ArrayAction?
+  /// Runs an array action; the `String` is an encrypted start's passphrase.
+  var onArrayAction: (ArrayAction, String?) -> Void = { _, _ in }
 
   // At the largest accessibility text sizes the capacity ring (itself
   // `@ScaledMetric`, see `CapacityRing`) grows large enough that it and the
@@ -24,6 +29,12 @@ struct ArrayHeroCard: View {
     DashboardCard("Array", systemImage: "externaldrive.fill") {
       VStack(alignment: .leading, spacing: 16) {
         capacitySection
+        ArrayStateControls(
+          array: array,
+          actionInFlight: arrayActionInFlight,
+          isDisabled: parityActionInFlight != nil,
+          perform: onArrayAction
+        )
         if parity.isActive {
           parityProgressSection
         } else if let lastParityCheckLine {
@@ -150,6 +161,7 @@ struct ArrayHeroCard: View {
       let actions = snapshot.availableParityActions
       if !actions.isEmpty {
         ParityControls(actions: actions, actionInFlight: parityActionInFlight, perform: onParityAction)
+          .disabled(arrayActionInFlight != nil)
       }
       NavigationLink(value: ParityRoute()) {
         HStack {

@@ -1,0 +1,17 @@
+# Start and stop the array (issue #25).
+#
+# `setState` returns the typed `UnraidArray`, not the untyped `JSON` the parity
+# actions return. Tower reads only `state`, the state the server reports when
+# the call returns. That can still be the old state while Unraid works, so the
+# store re-fetches `Dashboard` until the array reaches the requested state.
+#
+# `decryptionPassword` unlocks an encrypted array on start. Tower sends it in
+# this one request and never stores it.
+mutation SetArrayState($input: ArrayStateInput!) {
+  array {
+    setState(input: $input) {
+      id
+      state
+    }
+  }
+}

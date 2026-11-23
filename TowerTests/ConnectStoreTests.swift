@@ -166,4 +166,7 @@ private final class StubSystemRepository: SystemRepositoryProtocol, @unchecked S
   func resumeParityCheck() async throws { fatalError("not used by ConnectStore") }
   func cancelParityCheck() async throws { fatalError("not used by ConnectStore") }
   func parityHistory() async throws -> [ParityCheckRecord] { fatalError("not used by ConnectStore") }
+  func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String? {
+    fatalError("not used by ConnectStore")
+  }
 }

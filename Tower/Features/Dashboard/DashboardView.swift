@@ -111,6 +111,10 @@ struct DashboardView: View {
             parityActionInFlight: store.parityActionInFlight,
             onParityAction: { action, correct in
               Task { await store.perform(action, correct: correct) }
+            },
+            arrayActionInFlight: store.arrayActionInFlight,
+            onArrayAction: { action, passphrase in
+              Task { await store.perform(action, passphrase: passphrase) }
             }
           )
           SystemMetricsCard(

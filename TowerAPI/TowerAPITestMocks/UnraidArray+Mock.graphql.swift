@@ -13,6 +13,7 @@ nonisolated public final class UnraidArray: MockObject {
     @Field<[ArrayDisk]>("caches") public var caches
     @Field<ArrayCapacity>("capacity") public var capacity
     @Field<[ArrayDisk]>("disks") public var disks
+    @Field<TowerAPI.PrefixedID>("id") public var id
     @Field<[ArrayDisk]>("parities") public var parities
     @Field<ParityCheck>("parityCheckStatus") public var parityCheckStatus
     @Field<GraphQLEnum<TowerAPI.ArrayState>>("state") public var state
@@ -24,6 +25,7 @@ public extension Mock where O == UnraidArray {
     caches: [Mock<ArrayDisk>] = [],
     capacity: Mock<ArrayCapacity> = Mock<ArrayCapacity>(),
     disks: [Mock<ArrayDisk>] = [],
+    id: TowerAPI.PrefixedID = .defaultMockValue,
     parities: [Mock<ArrayDisk>] = [],
     parityCheckStatus: Mock<ParityCheck> = Mock<ParityCheck>(),
     state: GraphQLEnum<TowerAPI.ArrayState> = .case(.started)
@@ -32,6 +34,7 @@ public extension Mock where O == UnraidArray {
     _setList(caches, for: \.caches)
     _setEntity(capacity, for: \.capacity)
     _setList(disks, for: \.disks)
+    _setScalar(id, for: \.id)
     _setList(parities, for: \.parities)
     _setEntity(parityCheckStatus, for: \.parityCheckStatus)
     _setScalar(state, for: \.state)

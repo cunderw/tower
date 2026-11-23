@@ -12,6 +12,7 @@ nonisolated public final class Mutation: MockObject {
   public struct MockFields: Sendable {
     @Field<NotificationOverview>("archiveAll") public var archiveAll
     @Field<Notification>("archiveNotification") public var archiveNotification
+    @Field<ArrayMutations>("array") public var array
     @Field<NotificationOverview>("deleteNotification") public var deleteNotification
     @Field<DockerMutations>("docker") public var docker
     @Field<ParityCheckMutations>("parityCheck") public var parityCheck
@@ -24,6 +25,7 @@ public extension Mock where O == Mutation {
   convenience init(
     archiveAll: Mock<NotificationOverview> = Mock<NotificationOverview>(),
     archiveNotification: Mock<Notification> = Mock<Notification>(),
+    array: Mock<ArrayMutations> = Mock<ArrayMutations>(),
     deleteNotification: Mock<NotificationOverview> = Mock<NotificationOverview>(),
     docker: Mock<DockerMutations> = Mock<DockerMutations>(),
     parityCheck: Mock<ParityCheckMutations> = Mock<ParityCheckMutations>(),
@@ -33,6 +35,7 @@ public extension Mock where O == Mutation {
     self.init()
     _setEntity(archiveAll, for: \.archiveAll)
     _setEntity(archiveNotification, for: \.archiveNotification)
+    _setEntity(array, for: \.array)
     _setEntity(deleteNotification, for: \.deleteNotification)
     _setEntity(docker, for: \.docker)
     _setEntity(parityCheck, for: \.parityCheck)

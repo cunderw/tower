@@ -37,6 +37,7 @@ final class DemoServer: @unchecked Sendable {
   private var notifications: [ServerNotification]
   private var parity: ParityStatus
   private var parityHistory: [ParityCheckRecord]
+  private var arrayState = DemoData.array.state
 
   init() {
     containers = DemoData.containers
@@ -69,7 +70,7 @@ final class DemoServer: @unchecked Sendable {
   func dashboard() -> DashboardSnapshot {
     lock.withLock {
       DashboardSnapshot(
-        array: DemoData.array,
+        array: DemoData.array.with(state: arrayState),
         parity: parity,
         services: ServiceCounts(
           containersRunning: containers.filter(\.isRunning).count,
@@ -165,6 +166,16 @@ final class DemoServer: @unchecked Sendable {
     }
   }
 
+  /// Starts or stops the array at once, and returns the new state as
+  /// `setState` does. A stop ends a running check first, as Unraid does.
+  func setArrayState(_ action: ArrayAction) -> String {
+    if action == .stop, lock.withLock({ parity.isActive }) { cancelParityCheck() }
+    return lock.withLock {
+      arrayState = action.targetState
+      return arrayState
+    }
+  }
+
   /// Ends the check and records it in the history, as Unraid does.
   func cancelParityCheck() {
     lock.withLock {
@@ -215,5 +226,13 @@ extension ServerNotification {
       id: id, title: title, subject: subject, description: description,
       importance: importance, kind: kind, linkPath: linkPath, timestamp: timestamp
     )
+  }
+}
+
+extension ArrayStatus {
+  /// The same array in another state. For the demo and the UI-test fakes,
+  /// whose arrays start and stop.
+  func with(state: String) -> ArrayStatus {
+    ArrayStatus(state: state, capacity: capacity, disks: disks, parities: parities, caches: caches, system: system)
   }
 }

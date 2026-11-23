@@ -16,7 +16,15 @@ final class DashboardStore: LoadingStore {
   /// themselves, and `perform(_:correct:)` checks it first so a second tap is
   /// ignored rather than sending a second mutation.
   private(set) var parityActionInFlight: ParityAction?
-  /// Bumped once per parity action the server accepts. `refresh()` captures it
+  /// The array action in flight, if any, until the array reaches its new state
+  /// or the wait ends. Never carries the passphrase.
+  private(set) var arrayActionInFlight: ArrayAction?
+  /// Whether any parity or array action runs. Every control on the hero card
+  /// disables itself on this, and both `perform` methods return early on it:
+  /// a stop cancels a running parity check, and a parity action on an array
+  /// that is changing state can only fail.
+  var isActionInFlight: Bool { parityActionInFlight != nil || arrayActionInFlight != nil }
+  /// Bumped once per parity or array action the server accepts. `refresh()` captures it
   /// before its fetch and compares afterwards: a poll that was in flight while
   /// an action landed predates the action and shows the old parity state. Same
   /// guard as `VMStore` and `DockerStore`.
@@ -45,6 +53,22 @@ final class DashboardStore: LoadingStore {
   private let metrics: any MetricsStreaming
   private let staleAfter: [LiveMetric: Duration]
   private let sleep: @Sendable (Duration) async throws -> Void
+  private let arrayPollInterval: Duration
+  private let arrayPollAttempts: Int
+
+  /// The wait between re-fetches after an array action: 2 s. `#if DEBUG`
+  /// only, `UITEST_ARRAY_POLL_INTERVAL_MS` shortens it, so a UI test can reach
+  /// the end of the wait without 60 real seconds. Not `UITEST_POLL_INTERVAL_MS`:
+  /// a fast dashboard poll replaces the error line before a test can read it.
+  static var defaultArrayPollInterval: Duration {
+    #if DEBUG
+    if let raw = ProcessInfo.processInfo.environment["UITEST_ARRAY_POLL_INTERVAL_MS"],
+       let milliseconds = Int(raw) {
+      return .milliseconds(milliseconds)
+    }
+    #endif
+    return .seconds(2)
+  }
 
   /// - Parameters:
   ///   - staleAfter: How long a live CPU or memory value stays on screen with
@@ -54,18 +78,25 @@ final class DashboardStore: LoadingStore {
   ///     freeze an old reading on screen. The CPU temperature never expires;
   ///     see `cpuTemperature`.
   ///   - sleep: Injected, as `poll` injects it, so tests use no real time.
+  ///   - arrayPollInterval, arrayPollAttempts: How often and how many times
+  ///     `perform(_:passphrase:)` re-fetches while the array changes state.
+  ///     30 times every 2 s is a minute.
   init(
     repository: any SystemRepositoryProtocol,
     metrics: any MetricsStreaming,
     staleAfter: [LiveMetric: Duration] = [
       .cpu: .seconds(3), .memory: .seconds(6),
     ],
-    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+    arrayPollInterval: Duration = DashboardStore.defaultArrayPollInterval,
+    arrayPollAttempts: Int = 30
   ) {
     self.repository = repository
     self.metrics = metrics
     self.staleAfter = staleAfter
     self.sleep = sleep
+    self.arrayPollInterval = arrayPollInterval
+    self.arrayPollAttempts = arrayPollAttempts
   }
 
   /// The polled reading with the live values on top.
@@ -133,8 +164,8 @@ final class DashboardStore: LoadingStore {
   /// failure keeps the last good snapshot on screen via `.actionFailed`
   /// rather than discarding it.
   ///
-  /// Drops its own result if a parity action landed while this fetch was in
-  /// flight; see `mutationSequence`.
+  /// Drops its own result if a parity or array action landed while this fetch
+  /// was in flight; see `mutationSequence`.
   func refresh() async {
     guard state.value != nil else { return await load() }
     let sequenceAtRequest = mutationSequence
@@ -162,7 +193,7 @@ final class DashboardStore: LoadingStore {
   /// the re-fetch can still show the old state for a moment. The next poll
   /// corrects it.
   func perform(_ action: ParityAction, correct: Bool = false) async {
-    guard parityActionInFlight == nil else { return }
+    guard !isActionInFlight else { return }
     parityActionInFlight = action
 
     await mutate {
@@ -182,6 +213,71 @@ final class DashboardStore: LoadingStore {
     }
 
     parityActionInFlight = nil
+  }
+
+  /// Starts or stops the array (issue #25), then shows the array's new state.
+  ///
+  /// - If the server answers with the requested state, one re-fetch.
+  /// - If it answers with another state, or the request times out, Unraid is
+  ///   still working: re-fetch every `arrayPollInterval` until the array
+  ///   reaches the requested state, at most `arrayPollAttempts` times. The
+  ///   controls stay disabled for the whole wait.
+  /// - A start that sent a passphrase and leaves the array stopped says the
+  ///   passphrase may be wrong. Nobody has measured how Unraid reports a wrong
+  ///   one, so this does not depend on an error from the server.
+  /// - A server error, such as "The array is already started", shows as it
+  ///   arrives.
+  ///
+  /// `passphrase` goes into the request and nowhere else: not into
+  /// `arrayActionInFlight`, `state`, or any error text.
+  func perform(_ action: ArrayAction, passphrase: String? = nil) async {
+    guard !isActionInFlight else { return }
+    arrayActionInFlight = action
+
+    await mutate {
+      let reported = try await repository.setArrayState(action, passphrase: passphrase)
+      mutationSequence += 1
+      guard reported == action.targetState else {
+        return try await waitForArray(action, unlocking: passphrase != nil)
+      }
+      do {
+        return try await repository.dashboard()
+      } catch {
+        throw AppError.unknown(
+          "\(action.title) succeeded, but Tower couldn't refresh the array status. "
+            + AppError.wrapping(error).message
+        )
+      }
+    }
+
+    arrayActionInFlight = nil
+  }
+
+  /// Re-fetches until the array reports `action.targetState`. A failed
+  /// re-fetch does not end the wait: the server can be busy while the array
+  /// changes state.
+  ///
+  /// When the wait ends first, the newest snapshot goes on screen before the
+  /// error, so the error line sits over the array's real state.
+  private func waitForArray(_ action: ArrayAction, unlocking: Bool) async throws -> DashboardSnapshot {
+    var latest: DashboardSnapshot?
+    for _ in 0..<arrayPollAttempts {
+      try await sleep(arrayPollInterval)
+      guard let snapshot = try? await repository.dashboard() else { continue }
+      // A poll that asked before this answer must not land over it.
+      mutationSequence += 1
+      latest = snapshot
+      if snapshot.array.state == action.targetState { return snapshot }
+    }
+    if let latest { state = .loaded(latest) }
+    if action == .start, unlocking, latest?.array.state == "STOPPED" {
+      throw AppError.unknown("The array did not start. The passphrase may be wrong.")
+    }
+    throw AppError.stillRunning(
+      action == .start
+        ? "The array has not started yet. Pull to refresh to check again."
+        : "The array has not stopped yet. Pull to refresh to check again."
+    )
   }
 
   /// A store for the Parity screen's history list, on this dashboard's

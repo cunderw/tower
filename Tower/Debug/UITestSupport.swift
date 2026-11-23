@@ -58,6 +58,8 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
     /// A normal dashboard whose four parity actions all fail with a GraphQL
     /// error, so `ParityCheckUITests` can see the server's message on screen.
     case parityActionFails
+    /// The array actions (issue #25). See `FakeArray.Mode`.
+    case array(FakeArray.Mode)
   }
 
   /// The message every parity action throws under `.parityActionFails`.
@@ -75,11 +77,25 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
   /// The parity check the four parity actions change, boxed for the same
   /// reason as `attempts`. It starts as the fixture's running check, so every
   /// class that asserts on the progress row still sees it.
-  private let parity = FakeParityCheck()
+  private let parity: FakeParityCheck
+  /// The array the array actions change, boxed for the same reason.
+  private let array: FakeArray
+
+  init(outcome: Outcome) {
+    self.outcome = outcome
+    if case .array(let mode) = outcome {
+      array = FakeArray(mode: mode)
+      // A stopped array runs no parity check.
+      parity = FakeParityCheck(initial: mode.startsStopped ? .uitestIdle : DashboardSnapshot.uitestFixture.parity)
+    } else {
+      array = FakeArray(mode: .started)
+      parity = FakeParityCheck(initial: DashboardSnapshot.uitestFixture.parity)
+    }
+  }
 
   func testConnection() async throws -> Bool {
     switch outcome {
-    case .success, .failFirstThenRecover, .unknownMetrics, .diskTempOscillates, .hangs, .parityActionFails:
+    case .success, .failFirstThenRecover, .unknownMetrics, .diskTempOscillates, .hangs, .parityActionFails, .array:
       return true
     case .failure(let error): throw error
     }
@@ -89,6 +105,9 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
     switch outcome {
     case .success, .parityActionFails:
       return DashboardSnapshot.uitestFixture.with(parity: parity.status)
+    case .array:
+      return DashboardSnapshot(
+        array: array.status, parity: parity.status, services: DashboardSnapshot.uitestFixture.services)
     case .unknownMetrics:
       return .uitestFixtureWithUnknownMetrics
     case .failure(let error):
@@ -131,6 +150,24 @@ struct FakeSystemRepository: SystemRepositoryProtocol {
   func parityHistory() async throws -> [ParityCheckRecord] {
     parity.history
   }
+
+  /// Waits `FakeArray.Mode.delay`, so the progress line is on screen long
+  /// enough to see, then changes the fake array as `setState` would. A
+  /// wrong passphrase leaves the array stopped and throws nothing, because
+  /// nobody has measured what a real server does with one.
+  func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String? {
+    let mode = if case .array(let mode) = outcome { mode } else { FakeArray.Mode.started }
+    try await Task.sleep(for: mode.delay)
+    if mode == .actionFails {
+      throw AppError.graphQL([Self.arrayActionFailureMessage])
+    }
+    if action == .stop, parity.status.isActive { parity.cancel() }
+    return try array.apply(action, passphrase: passphrase)
+  }
+
+  /// The message every array action throws under `array-action-fails`, in
+  /// the words Unraid uses for a second request during a change.
+  static let arrayActionFailureMessage = "Array state is still being updated"
 
   private func failIfParityActionsFail() throws {
     guard case .parityActionFails = outcome else { return }
@@ -205,8 +242,12 @@ struct FakeMetricsStream: MetricsStreaming {
 /// row, as it does on a real server.
 private final class FakeParityCheck: @unchecked Sendable {
   private let lock = NSLock()
-  private var current = DashboardSnapshot.uitestFixture.parity
+  private var current: ParityStatus
   private var records: [ParityCheckRecord] = UITestFixtures.parityHistory
+
+  init(initial: ParityStatus) {
+    current = initial
+  }
 
   var status: ParityStatus { lock.withLock { current } }
   var history: [ParityCheckRecord] { lock.withLock { records } }
@@ -249,6 +290,91 @@ private final class FakeParityCheck: @unchecked Sendable {
       }
     }
   }
+}
+
+/// `FakeSystemRepository`'s array under `UITEST_DASHBOARD_STATE` values
+/// `array-stopped`, `array-encrypted`, `array-action-fails` and `array-slow`.
+/// Every other value gets `.started`, which only the default fixture's Stop
+/// button reaches.
+final class FakeArray: @unchecked Sendable {
+  enum Mode: Equatable {
+    /// The default fixture's started array.
+    case started
+    /// `array-stopped`: a stopped, unencrypted array.
+    case stopped
+    /// `array-encrypted`: a stopped array whose data and cache disks are
+    /// `luks:xfs`. A start needs `FakeArray.passphrase`.
+    case encrypted
+    /// `array-action-fails`: a started array whose actions fail with
+    /// `FakeSystemRepository.arrayActionFailureMessage`.
+    case actionFails
+    /// `array-slow`: a started array whose actions take 90 s, so a test can
+    /// photograph the progress line. Longer than XCTest's 60 s wait for
+    /// animations to end, which the spinner holds open.
+    case slow
+
+    var startsStopped: Bool { self == .stopped || self == .encrypted }
+
+    var delay: Duration { self == .slow ? .seconds(90) : .milliseconds(500) }
+  }
+
+  /// The passphrase that unlocks `.encrypted`. `ArrayStateUITests` types the
+  /// same constant. Only a fake's, and never a real one.
+  static let passphrase = "uitest-correct-passphrase"
+
+  private let lock = NSLock()
+  private var state: String
+  private let encrypted: Bool
+
+  init(mode: Mode) {
+    state = mode.startsStopped ? "STOPPED" : "STARTED"
+    encrypted = mode == .encrypted
+  }
+
+  var status: ArrayStatus {
+    lock.withLock {
+      let base = ArrayStatus.uitestFixture.with(state: state)
+      guard encrypted else { return base }
+      return ArrayStatus(
+        state: base.state, capacity: base.capacity,
+        disks: base.disks.map { $0.withFsType("luks:xfs") },
+        parities: base.parities,
+        caches: base.caches.map { $0.withFsType("luks:xfs") },
+        system: base.system
+      )
+    }
+  }
+
+  /// The state `setState` would answer with. A start or stop the array
+  /// already has throws, as Unraid's does.
+  func apply(_ action: ArrayAction, passphrase: String?) throws -> String {
+    try lock.withLock {
+      if state == action.targetState {
+        throw AppError.graphQL(["The array is already \(action == .start ? "started" : "stopped")"])
+      }
+      if action == .start, encrypted, passphrase != Self.passphrase { return state }
+      state = action.targetState
+      return state
+    }
+  }
+}
+
+extension ArrayDisk {
+  fileprivate func withFsType(_ fsType: String) -> ArrayDisk {
+    ArrayDisk(
+      id: id, idx: idx, name: name, device: device, status: status, temp: temp, size: size,
+      fsFree: fsFree, fsUsed: fsUsed, fsSize: fsSize, fsType: fsType, rotational: rotational,
+      numReads: numReads, numWrites: numWrites, numErrors: numErrors, type: type
+    )
+  }
+}
+
+extension ParityStatus {
+  /// The last check, finished cleanly: what a stopped array reports.
+  fileprivate static let uitestIdle = ParityStatus(
+    state: .completed, progressPercent: 100, errors: 0, speed: nil,
+    lastRunTimestamp: "2026-11-01T03:00:00.000Z", durationSeconds: 37_800, correcting: false
+  )
 }
 
 /// A lock-protected call counter, boxed out of `FakeSystemRepository` so the

@@ -131,6 +131,11 @@ struct TowerApp: App {
       case "disk-temp-oscillates": outcome = .diskTempOscillates
       case "hangs": outcome = .hangs
       case "parity-action-fails": outcome = .parityActionFails
+      // Array start and stop (issue #25). See `FakeArray.Mode`.
+      case "array-stopped": outcome = .array(.stopped)
+      case "array-encrypted": outcome = .array(.encrypted)
+      case "array-action-fails": outcome = .array(.actionFails)
+      case "array-slow": outcome = .array(.slow)
       // The live dashboard stream (issue #24), over the default fixture.
       case "live-metrics":
         outcome = .success
