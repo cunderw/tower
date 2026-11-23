@@ -2,6 +2,7 @@ subscription LiveMemory {
   systemMetricsMemory {
     percentTotal
     used
+    available
     total
   }
 }

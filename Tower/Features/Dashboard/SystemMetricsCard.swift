@@ -75,7 +75,10 @@ struct SystemMetricsCard: View {
     return system?.cpuBrand
   }
 
-  /// `metrics.memory.used`/`.total` are **bytes** — the one place in this API
+  /// `memoryUsedBytes` is total minus available, so it agrees with the
+  /// gauge's percentage.
+  ///
+  /// `metrics.memory` figures are **bytes** — the one place in this API
   /// that isn't kilobytes (array capacity, disk sizes, and share usage all
   /// are). `Formatters.bytes` here, never `Formatters.kilobytes`: the wrong
   /// one is off by 1024x and renders a plausible-looking wrong number (28.16

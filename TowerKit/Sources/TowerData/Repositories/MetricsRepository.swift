@@ -79,7 +79,9 @@ public struct LiveMetricsRepository: MetricsStreaming {
             await keepForwarding(LiveMemorySubscription(), to: continuation) { data in
               let memory = data.systemMetricsMemory
               return .memory(
-                percent: memory.percentTotal, usedBytes: memory.used, totalBytes: memory.total)
+                percent: memory.percentTotal,
+                usedBytes: memoryInUseBytes(total: memory.total, available: memory.available),
+                totalBytes: memory.total)
             }
           }
           group.addTask {

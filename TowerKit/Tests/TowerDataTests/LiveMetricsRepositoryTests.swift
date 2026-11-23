@@ -152,7 +152,7 @@ private func graphQLError(_ message: String) -> Frame {
 
 private let cpu47 = next(#"{"systemMetricsCpu":{"__typename":"CpuUtilization","percentTotal":47.5}}"#)
 private let memory58 = next(
-  #"{"systemMetricsMemory":{"__typename":"MemoryUtilization","percentTotal":57.7,"used":60368560128,"total":67023622144}}"#
+  #"{"systemMetricsMemory":{"__typename":"MemoryUtilization","percentTotal":57.7,"used":60368560128,"available":28350992167,"total":67023622144}}"#
 )
 
 private func sensor(_ type: String, _ value: Double, unit: String = "CELSIUS") -> String {
@@ -189,7 +189,7 @@ private func eventually(_ condition: () -> Bool) async throws {
 }
 
 private let memory61 = next(
-  #"{"systemMetricsMemory":{"__typename":"MemoryUtilization","percentTotal":61.0,"used":40884409507,"total":67023622144}}"#
+  #"{"systemMetricsMemory":{"__typename":"MemoryUtilization","percentTotal":61.0,"used":40884409507,"available":26139212636,"total":67023622144}}"#
 )
 
 /// What a listening task has received, readable while it still listens.
@@ -270,7 +270,9 @@ struct LiveMetricsRepositoryTests {
     let updates = try await firstUpdates(2, from: repository)
 
     #expect(updates.contains(.cpu(percent: 47.5)))
-    #expect(updates.contains(.memory(percent: 57.7, usedBytes: 60_368_560_128, totalBytes: 67_023_622_144)))
+    // `used` (60.4 GB) counts buffers and cache. The reading carries total
+    // minus available, which agrees with `percentTotal`.
+    #expect(updates.contains(.memory(percent: 57.7, usedBytes: 38_672_629_977, totalBytes: 67_023_622_144)))
   }
 
   // The shape a 4.37 server sends: CPU cores, plus `CUSTOM` sensors that
@@ -492,6 +494,9 @@ struct LiveMetricsLiveServerTests {
     }
     #expect((0...100).contains(percent))
     #expect(total > 0 && used <= total)
+    // The detail line and the gauge must describe the same quantity.
+    print("[live-metrics] memory used \(used) of \(total), percent \(percent)")
+    #expect(abs(Double(used) / Double(total) * 100 - percent) <= 1)
     #expect(latest[.cpuTemperature] != nil)
   }
 }

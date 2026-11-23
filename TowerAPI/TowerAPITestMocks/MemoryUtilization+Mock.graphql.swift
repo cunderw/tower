@@ -10,6 +10,7 @@ nonisolated public final class MemoryUtilization: MockObject {
   public typealias MockValueCollectionType = Array<Mock<MemoryUtilization>>
 
   public struct MockFields: Sendable {
+    @Field<TowerAPI.BigInt>("available") public var available
     @Field<Double>("percentTotal") public var percentTotal
     @Field<TowerAPI.BigInt>("total") public var total
     @Field<TowerAPI.BigInt>("used") public var used
@@ -18,11 +19,13 @@ nonisolated public final class MemoryUtilization: MockObject {
 
 public extension Mock where O == MemoryUtilization {
   convenience init(
+    available: TowerAPI.BigInt = .defaultMockValue,
     percentTotal: Double = 0.0,
     total: TowerAPI.BigInt = .defaultMockValue,
     used: TowerAPI.BigInt = .defaultMockValue
   ) {
     self.init()
+    _setScalar(available, for: \.available)
     _setScalar(percentTotal, for: \.percentTotal)
     _setScalar(total, for: \.total)
     _setScalar(used, for: \.used)

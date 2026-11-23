@@ -77,7 +77,9 @@ private func neverRunParityCheck() -> Mock<TowerAPITestMocks.ParityCheck> {
     ),
     metrics: Mock<TowerAPITestMocks.Metrics>(
       cpu: Mock<TowerAPITestMocks.CpuUtilization>(percentTotal: 5.5),
-      memory: Mock<TowerAPITestMocks.MemoryUtilization>(percentTotal: 60.0, total: 2000, used: 1000)
+      memory: Mock<TowerAPITestMocks.MemoryUtilization>(
+        available: 800, percentTotal: 60.0, total: 2000, used: 1000
+      )
     ),
     shares: [],
     vms: emptyVms()

@@ -286,7 +286,9 @@ extension DashboardSnapshot {
       cpuThreads: data.info.cpu.threads,
       cpuPercent: data.metrics.cpu?.percentTotal,
       memoryPercent: data.metrics.memory?.percentTotal,
-      memoryUsedBytes: data.metrics.memory?.used,
+      memoryUsedBytes: data.metrics.memory.map {
+        memoryInUseBytes(total: $0.total, available: $0.available)
+      },
       memoryTotalBytes: data.metrics.memory?.total
     )
 
