@@ -40,8 +40,8 @@ user adds.
     `TowerTests` as well builds and embeds each framework a second time under
     `Tower.app/PlugIns/TowerTests.xctest/Frameworks/`, so it loads twice at runtime.
     Apple's docs warn that this "may cause spurious casting failures and mysterious
-    crashes." Do not add a `package-product-members` entry to `TowerTests` without a
-    check that `Tower.app/PlugIns/TowerTests.xctest` in the built products holds no
+    crashes." Do not add a `package-product-members` entry to `TowerTests`, or a file to
+    its frameworks phase, without a check that `Tower.app/PlugIns/TowerTests.xctest` in the built products holds no
     `.framework` bundles.
 - **Secrets (Unraid API key, server URL) come from `.env.local`**, which is gitignored.
   Never commit them, and never let one reach a committed schema, log or test fixture.
