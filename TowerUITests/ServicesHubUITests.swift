@@ -231,7 +231,12 @@ final class ServicesHubUITests: XCTestCase {
     // The section was drawn as one item on a second page of the bar, behind
     // a "Next Page" chevron, from launch on.
     XCTAssertFalse(
-      app.buttons["Next Page"].exists, "the tab bar has a second page at launch")
+      app.buttons["Next Page"].waitForExistence(timeout: 3),
+      "the tab bar has a second page at launch")
+    // Rebuilding the section moved the bell and the gear onto a second row
+    // under the bar (PR #19), which no count of "Services" notices.
+    XCTAssertEqual(
+      tabBarItems(labelled: "Settings", in: app), 1, "the gear is not on the tab bar's row")
     showSidebar(in: app)
     let tautulli = sidebarEntry("Tautulli", in: app)
     XCTAssertTrue(tautulli.waitForExistence(timeout: 10))
@@ -249,6 +254,8 @@ final class ServicesHubUITests: XCTestCase {
     XCTAssertEqual(
       tabBarItems(labelled: "Services", in: app), 1,
       "the tab bar shows the Services hub and the Services section")
+    XCTAssertEqual(
+      tabBarItems(labelled: "Settings", in: app), 1, "the gear is not on the tab bar's row")
   }
 
   func testInstancesStayOutOfATabBarWithNoSidebar() throws {
