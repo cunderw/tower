@@ -283,8 +283,8 @@ final class ServicesHubUITests: XCTestCase {
     XCTAssertEqual(tabBarItems(labelled: "Tautulli", in: app), 0, "after Docker: temporary item")
     XCTAssertFalse(app.buttons["Previous Page"].exists, "after Docker: paged past Dashboard")
     XCTAssertEqual(tabBarItems(labelled: "Dashboard", in: app), 1, "after Docker: no Dashboard")
-    XCTAssertEqual(
-      tabBarItems(labelled: "Settings", in: app), 1, "after Docker: the gear is off the bar's row")
+    // Docker is a split view, so its gear sits in the list column below the bar.
+    XCTAssertEqual(gearsOverlappingTheTabBar(in: app), 0, "after Docker: gear under the bar")
   }
 
   func testInstancesStayOutOfATabBarWithNoSidebar() throws {
