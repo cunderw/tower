@@ -168,7 +168,27 @@ clear_status_bars() {
     xcrun simctl status_bar "$udid" clear >/dev/null 2>&1 || true
   done
 }
-trap clear_status_bars EXIT
+
+# The devices this run has put in Full Screen Apps, each as `udid=previous`. `previous` is
+# the key's earlier value, or empty when the device had no value.
+FULL_SCREEN=()
+# Best-effort, like `clear_status_bars`. Other gates run on the same simulators, so the
+# multitasking mode goes back to what it was.
+restore_multitasking() {
+  local entry udid previous
+  for entry in ${FULL_SCREEN[@]+"${FULL_SCREEN[@]}"}; do
+    udid="${entry%%=*}"
+    previous="${entry#*=}"
+    if [[ -z "$previous" ]]; then
+      xcrun simctl spawn "$udid" defaults delete com.apple.springboard \
+        SBMedusaMultitaskingEnabled >/dev/null 2>&1 || true
+    else
+      xcrun simctl spawn "$udid" defaults write com.apple.springboard \
+        SBMedusaMultitaskingEnabled -bool "$previous" >/dev/null 2>&1 || true
+    fi
+  done
+}
+trap 'clear_status_bars; restore_multitasking' EXIT
 
 # The UDID of the one available device with this name. `simctl status_bar` takes a UDID, and
 # two devices under one name would make "booted" ambiguous.
@@ -229,6 +249,22 @@ override_status_bar() {
     || die "cannot override the status bar time on $udid"
 }
 
+# Puts the device in Full Screen Apps (Settings > Multitasking & Gestures) for the run. The
+# iPad simulator runs in Windowed Apps, which draws a resize grip in the bottom-right corner
+# of every window, a full-size one too, so every iPad capture showed it. Full Screen Apps
+# draws no grip and changes nothing else in a capture. SpringBoard reads the key at the
+# next app launch, with no reboot. Measured on the iOS 27.2 runtime. Only the iPad has
+# multitasking modes, so only the iPad run sets it.
+use_full_screen_apps() {
+  local udid="$1" previous
+  previous="$(xcrun simctl spawn "$udid" defaults read com.apple.springboard \
+    SBMedusaMultitaskingEnabled 2>/dev/null)" || previous=""
+  FULL_SCREEN+=("$udid=$previous")
+  xcrun simctl spawn "$udid" defaults write com.apple.springboard \
+    SBMedusaMultitaskingEnabled -bool false \
+    || die "cannot set Full Screen Apps on $udid"
+}
+
 # Runs the tour for one kind into $STAGE/raw/<kind>, and keeps only the LISTING captures.
 capture() {
   local kind="$1" udid="$SIM_ID" device dir
@@ -239,6 +275,7 @@ capture() {
   fi
   note "capturing $kind on $device ($udid)"
   override_status_bar "$udid"
+  [[ "$kind" != ipad-13 ]] || use_full_screen_apps "$udid"
   rm -rf "$dir"
   mkdir -p "$dir" || die "cannot create $dir"
   # The tour reads its output directory from `TOWER_SCREENSHOT_DIR`

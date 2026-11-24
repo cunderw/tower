@@ -149,12 +149,10 @@ runtime the device type supports.
 | `Tower iPhone 17 Pro Max` | `iPhone-17-Pro-Max` | 6.9" App Store screenshots only |
 | `Tower iPhone Duo` | `iPhone-Duo` | Foldable iPhone; manual checks of the folded and unfolded layouts |
 
-Measured on 2026-11-24 with Xcode 27.2, which installs two iOS 27.2 runtimes. Build
-24B8117 (`SimRuntime.iOS-27-2`) supports the iPhone 17, the iPhone 17 Pro Max and the 13"
-iPad Pro, and every Tower device on this Mac runs on it. Build 24B91016s
-(`SimRuntime.iOS-27-2-iPhone19-4`) supports only the iPhone Duo. `simctl list devices` shows
-the iOS 27.0 and 27.1 runtimes as unavailable. No `Tower iPhone Duo` exists, so create it
-with the command above before a manual check on the foldable.
+Xcode 27.2 installs two iOS 27.2 runtimes. Build 24B8117 (`SimRuntime.iOS-27-2`) supports
+the iPhone 17, the iPhone 17 Pro Max and the 13" iPad Pro, so `Tower iPhone 17`,
+`Tower iPhone 17 Pro Max` and `Tower iPad` use it. Build 24B91016s
+(`SimRuntime.iOS-27-2-iPhone19-4`) supports only the iPhone Duo, so `Tower iPhone Duo` uses it.
 
 Keep a name and its device type together. An iPad name on an iPhone type lets the iPad
 checks pass against a phone.
@@ -260,6 +258,10 @@ folder, so `raw/` and `background/` never reach App Store Connect.
   flags. An override call that sets any other flag, with the time or after it, loses the
   year: the iPad then draws the weekday that date has in 2000 ("Sun Jan 9", not "Tue Jan 9").
   An EXIT trap clears the override, also when the run fails.
+- **The iPad tour runs in Full Screen Apps.** Windowed Apps, the simulator's mode, draws a
+  resize grip in the bottom-right corner of every capture. The script sets
+  `SBMedusaMultitaskingEnabled` to false in `com.apple.springboard` and puts the old value
+  back when it exits.
 - **The tour shuts its simulator down and boots it again first.** A device that stays booted
   can stop hiding the home indicator, and then every capture draws it. Run the tour through
   the device lock, because the shutdown stops anything else on that simulator.
