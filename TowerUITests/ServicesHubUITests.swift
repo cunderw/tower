@@ -256,6 +256,15 @@ final class ServicesHubUITests: XCTestCase {
       "the tab bar shows the Services hub and the Services section")
     XCTAssertEqual(
       tabBarItems(labelled: "Settings", in: app), 1, "the gear is not on the tab bar's row")
+    // With the section `.sidebarOnly`, iPadOS instead added the selected
+    // instance to the bar as a temporary item and paged the bar so Dashboard
+    // went behind a "Previous Page" chevron, until relaunch (round 2 of #37).
+    XCTAssertEqual(
+      tabBarItems(labelled: "Tautulli", in: app), 0, "the instance is a temporary tab bar item")
+    XCTAssertFalse(app.buttons["Previous Page"].exists, "the tab bar is paged past Dashboard")
+    XCTAssertFalse(app.buttons["Next Page"].exists, "the tab bar has a second page")
+    XCTAssertEqual(
+      tabBarItems(labelled: "Dashboard", in: app), 1, "Dashboard is not on the tab bar's row")
   }
 
   func testInstancesStayOutOfATabBarWithNoSidebar() throws {
