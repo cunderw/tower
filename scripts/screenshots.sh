@@ -209,9 +209,7 @@ override_status_bar() {
   OVERRIDDEN+=("$udid")
   # `discharging`, because a level alone draws a green charging battery.
   xcrun simctl status_bar "$udid" override \
-    --time "$bar_time" --dataNetwork wifi --wifiMode active --wifiBars 3 \
-    --cellularMode active --cellularBars 4 \
-    --batteryLevel 100 --batteryState discharging \
+    --time "$bar_time" --cellularBars 4 --batteryLevel 100 --batteryState discharging \
     || die "cannot override the status bar on $udid"
 }
 
