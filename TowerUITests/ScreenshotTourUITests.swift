@@ -572,7 +572,21 @@ final class ScreenshotTourUITests: XCTestCase {
       app.staticTexts["Anvil Road"].exists, "the demo library's first film never rendered")
     try capture(named: "radarr-library")
 
-    try captureInteractiveSearch(from: row, in: app)
+    // Every store screen before the interactive search. On iPad, the movie
+    // detail push and the search sheet leave both split-view bars lower for the
+    // rest of the run, and a store set whose last screens sit lower than its
+    // first ones looks broken. The captures after this point are verification
+    // only, so the shift does not reach the listing.
+    try captureRequests(in: app)
+    try captureMusic(in: app)
+    try captureSubtitles(in: app)
+    try captureStreams(in: app)
+
+    openHubRow("D0000000-0000-0000-0000-000000000001", in: app, named: "Radarr").tap()
+    let film = app.descendants(matching: .any)
+      .matching(NSPredicate(format: "identifier BEGINSWITH 'radarr.row.'")).firstMatch
+    XCTAssertTrue(film.waitForExistence(timeout: 20), "the demo library never loaded again")
+    try captureInteractiveSearch(from: film, in: app)
 
     app.buttons["Queue"].firstMatch.tap()
     let queued = app.descendants(matching: .any)
@@ -581,7 +595,7 @@ final class ScreenshotTourUITests: XCTestCase {
     try capture(named: "radarr-queue")
 
     try captureDownloadClient(in: app)
-    try captureRequestsAndIndexers(in: app)
+    try captureIndexers(in: app)
   }
 
   /// The interactive search sheet.
@@ -616,12 +630,13 @@ final class ScreenshotTourUITests: XCTestCase {
       "never got back to the *arr shell after the search")
   }
 
-  /// Overseerr's requests and Prowlarr's indexers.
+  /// Overseerr's requests, on the All filter.
   ///
   /// Requests is the screen that makes the media stack feel like something
-  /// other people use, and the indexer list is the one that shows Tower
-  /// noticing a problem — between them they cover both services.
-  private func captureRequestsAndIndexers(in app: XCUIApplication) throws {
+  /// other people use. The list opens on Pending, which holds two of demo mode's
+  /// five requests, so the tour picks All: approved, available and declined rows
+  /// show what the screen tracks, and on iPad they fill the column.
+  private func captureRequests(in app: XCUIApplication) throws {
     app.buttons["Services"].firstMatch.tap()
 
     let overseerr = app.descendants(matching: .any)
@@ -632,8 +647,23 @@ final class ScreenshotTourUITests: XCTestCase {
     let request = app.descendants(matching: .any)
       .matching(NSPredicate(format: "identifier BEGINSWITH 'overseerr.row.'")).firstMatch
     XCTAssertTrue(request.waitForExistence(timeout: 25), "the demo requests list never loaded")
-    try capture(named: "requests")
 
+    let filter = app.buttons["overseerr.filter"].firstMatch
+    XCTAssertTrue(filter.waitForExistence(timeout: 10), "the requests list offered no filter")
+    filter.tap()
+    let all = app.buttons["All"].firstMatch
+    XCTAssertTrue(all.waitForExistence(timeout: 5), "the filter menu offered no All")
+    all.tap()
+    // Quarry is the declined request, which no other filter the list opens on
+    // shows, so its row proves the All filter took.
+    let declined = app.descendants(matching: .any)
+      .matching(identifier: "overseerr.row.505").firstMatch
+    XCTAssertTrue(declined.waitForExistence(timeout: 25), "the All filter never loaded")
+    try capture(named: "requests")
+  }
+
+  /// Prowlarr's indexers: the list that shows Tower noticing a problem.
+  private func captureIndexers(in app: XCUIApplication) throws {
     app.buttons["Services"].firstMatch.tap()
     let prowlarr = app.descendants(matching: .any)
       .matching(identifier: "services.row.D0000000-0000-0000-0000-000000000007").firstMatch
@@ -650,10 +680,6 @@ final class ScreenshotTourUITests: XCTestCase {
         .firstMatch.exists,
       "no failing indexer visible in the indexer screenshot")
     try capture(named: "indexers")
-
-    try captureMusic(in: app)
-    try captureSubtitles(in: app)
-    try captureStreams(in: app)
   }
 
   /// Tautulli's activity screen.
