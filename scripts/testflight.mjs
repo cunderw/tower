@@ -73,9 +73,26 @@ async function api(method, path, body, attempt = 1) {
       await sleep(1000 * 2 ** (attempt - 1));
       return api(method, path, body, attempt + 1);
     }
-    throw new Error(`${method} ${path} → ${res.status}\n${text}`);
+    throw Object.assign(new Error(`${method} ${path} → ${res.status}\n${text}`), { status: res.status });
   }
   return text ? JSON.parse(text) : null;
+}
+
+// A build that just read VALID can still answer 404 "no resource of type 'builds'" on the calls
+// that take its id, while App Store Connect catches up. Retries only that 404, 20 times 15 s
+// apart (5 minutes), then fails as before. Every other error fails at once.
+async function whenBuildKnown(what, call) {
+  for (let retry = 1; ; retry++) {
+    try {
+      return await call();
+    } catch (error) {
+      if (error.status !== 404 || !/no resource of type 'builds'/.test(error.message) || retry > 20) {
+        throw error;
+      }
+      log(`${what}: 404, App Store Connect does not know the build yet. Retry ${retry} of 20 in 15 s.`);
+      await sleep(15_000);
+    }
+  }
 }
 
 // Listed and matched here, because `filter[bundleId]` is not reliable on every account.
@@ -169,24 +186,24 @@ async function distributeExternally(appId, build, notes) {
   if (notes) await writeNotes(build, notes);
   for (const name of wanted) {
     const group = groups.find((g) => g.attributes.name === name);
-    await api('POST', `/v1/betaGroups/${group.id}/relationships/builds`, {
+    await whenBuildKnown(`group "${name}"`, () => api('POST', `/v1/betaGroups/${group.id}/relationships/builds`, {
       data: [{ type: 'builds', id: build.id }],
-    });
+    }));
     report(`group "${name}": holds build ${build.attributes.version}`);
   }
 
-  const detail = await api('GET', `/v1/builds/${build.id}/buildBetaDetail`);
+  const detail = await whenBuildKnown('build beta detail', () => api('GET', `/v1/builds/${build.id}/buildBetaDetail`));
   const state = detail.data.attributes.externalBuildState;
   if (state !== 'READY_FOR_BETA_SUBMISSION') {
     report(`Beta App Review: not submitted, externalBuildState is ${state}` + reviewNext(state));
     return;
   }
-  await api('POST', '/v1/betaAppReviewSubmissions', {
+  await whenBuildKnown('Beta App Review', () => api('POST', '/v1/betaAppReviewSubmissions', {
     data: {
       type: 'betaAppReviewSubmissions',
       relationships: { build: { data: { type: 'builds', id: build.id } } },
     },
-  });
+  }));
   report('Beta App Review: submitted');
 }
 
