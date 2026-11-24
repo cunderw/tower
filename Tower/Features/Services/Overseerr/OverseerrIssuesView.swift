@@ -77,17 +77,18 @@ struct OverseerrIssuesView: View {
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
         // A button, not a Toggle: a Toggle row in this app only responds at
-        // its switch, and this lives in a toolbar anyway.
+        // its switch, and this lives in a toolbar anyway. The title names
+        // the action the state allows, because a toolbar item's
+        // `accessibilityValue` does not reach the iOS 27 tree.
         Button {
           store.includeResolved.toggle()
         } label: {
           Label(
-            "Show Resolved Issues",
+            store.includeResolved ? "Hide Resolved Issues" : "Show Resolved Issues",
             systemImage: store.includeResolved ? "line.3.horizontal.decrease.circle.fill"
               : "line.3.horizontal.decrease.circle")
         }
         .accessibilityIdentifier("overseerr.issues.filter")
-        .accessibilityValue(store.includeResolved ? "All issues" : "Open issues only")
       }
     }
     .overlay {
