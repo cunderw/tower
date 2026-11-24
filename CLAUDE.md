@@ -253,7 +253,10 @@ folder, so `raw/` and `background/` never reach App Store Connect.
 - **The tour overrides the status bar**: 9:41 on 2007-01-09, full bars, 100% battery with
   `--batteryState discharging` (a level alone draws a charging battery). `simctl` takes the
   date only as ISO 8601 with milliseconds and an offset, such as
-  `2007-01-09T09:41:00.000-06:00`. An EXIT trap clears the override, also when the run fails.
+  `2007-01-09T09:41:00.000-06:00`. Set `--time` in its own override call, after the other
+  flags. An override call that sets any other flag, with the time or after it, loses the
+  year: the iPad then draws the weekday that date has in 2000 ("Sun Jan 9", not "Tue Jan 9").
+  An EXIT trap clears the override, also when the run fails.
 - **The tour shuts its simulator down and boots it again first.** A device that stays booted
   can stop hiding the home indicator, and then every capture draws it. Run the tour through
   the device lock, because the shutdown stops anything else on that simulator.

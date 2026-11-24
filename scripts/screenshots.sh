@@ -188,6 +188,10 @@ print(found[0])
 # `…00Z` as "non-ISO", and a bare `9:41` leaves the iPad's date at today's. The offset is
 # this Mac's on that day, because the simulator draws the time in the Mac's zone.
 #
+# 2007-01-09 is a Tuesday, the date of the iPhone's announcement, and the iPad draws it as
+# "Tue Jan 9". This holds only when `--time` goes in an override call of its own, after
+# every other flag. See `override_status_bar`.
+#
 # `/bin/date`, because a GNU `date` first on PATH has no `-j`.
 tour_time() {
   local offset
@@ -215,8 +219,14 @@ override_status_bar() {
   OVERRIDDEN+=("$udid")
   # `discharging`, because a level alone draws a green charging battery.
   xcrun simctl status_bar "$udid" override \
-    --time "$bar_time" --cellularBars 4 --batteryLevel 100 --batteryState discharging \
+    --cellularBars 4 --batteryLevel 100 --batteryState discharging \
     || die "cannot override the status bar on $udid"
+  # The time in a call of its own, and last. An override call that sets any other
+  # flag, with `--time` or after it, keeps the month and day but loses the year:
+  # the iPad then draws the weekday of that date in 2000, "Sun Jan 9" for a Tuesday
+  # (issue #49).
+  xcrun simctl status_bar "$udid" override --time "$bar_time" \
+    || die "cannot override the status bar time on $udid"
 }
 
 # Runs the tour for one kind into $STAGE/raw/<kind>, and keeps only the LISTING captures.
