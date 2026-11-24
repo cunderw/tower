@@ -211,8 +211,8 @@ async function distributeExternally(appId, build, notes) {
     if (error.status !== 422 || !error.message.includes('ENTITY_UNPROCESSABLE.ANOTHER_BUILD_IN_REVIEW')) {
       throw error;
     }
-    report('Beta App Review: not submitted, another build of this version is in review; ' +
-      'submit this build after that review completes');
+    report('Beta App Review: not submitted, another build of this version is in review. ' +
+      'Manual step: submit this build for Beta App Review after that review completes.');
     return;
   }
   report('Beta App Review: submitted');
