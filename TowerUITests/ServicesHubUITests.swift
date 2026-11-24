@@ -254,8 +254,11 @@ final class ServicesHubUITests: XCTestCase {
     XCTAssertEqual(
       tabBarItems(labelled: "Services", in: app), 1,
       "the tab bar shows the Services hub and the Services section")
+    // The instance may show as its own tab (gear on the bar's row) or inside
+    // the hub (gear in the hub's list column, below the bar). A redirect to
+    // the hub drew that column's toolbar under the floating bar (PR #36).
     XCTAssertEqual(
-      tabBarItems(labelled: "Settings", in: app), 1, "the gear is not on the tab bar's row")
+      gearsOverlappingTheTabBar(in: app), 0, "a gear is drawn under the floating tab bar")
     // With the section `.sidebarOnly`, iPadOS instead added the selected
     // instance to the bar as a temporary item and paged the bar so Dashboard
     // went behind a "Previous Page" chevron, until relaunch (round 2 of #37).
@@ -287,6 +290,15 @@ final class ServicesHubUITests: XCTestCase {
       .matching(NSPredicate(format: "label IN %@", names)).firstMatch
     XCTAssertFalse(
       instanceTab.waitForExistence(timeout: 5), "\(instanceTab.label) appears as a tab")
+  }
+
+  /// Gears neither on the top tab bar's row nor wholly below it.
+  private func gearsOverlappingTheTabBar(in app: XCUIApplication) -> Int {
+    let bar = app.buttons["ToggleSideBar"].firstMatch.frame
+    let gears = app.buttons.matching(identifier: "toolbar.settings").allElementsBoundByIndex
+      .filter(\.isHittable)
+    for gear in gears { print("[gear] \(gear.frame)") }
+    return gears.filter { abs($0.frame.midY - bar.midY) >= 1 && $0.frame.minY < bar.maxY }.count
   }
 
   /// Sidebar rows are `Cell`s whose *identifier* is the SF Symbol name and
