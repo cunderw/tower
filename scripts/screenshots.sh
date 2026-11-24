@@ -168,7 +168,40 @@ clear_status_bars() {
     xcrun simctl status_bar "$udid" clear >/dev/null 2>&1 || true
   done
 }
-trap clear_status_bars EXIT
+
+# The devices this run has put in Full Screen Apps, each as `udid=previous`. `previous` is
+# the key's earlier value, or empty when the device had no value.
+FULL_SCREEN=()
+# Best-effort, like `clear_status_bars`: a failure prints a warning and does not change the
+# run's status. Other gates run on the same simulators, so the multitasking mode goes back
+# to what it was. `defaults read` prints a bool as 1 or 0, and `defaults write -bool`
+# rejects both, so the value is mapped to true or false first.
+restore_multitasking() {
+  local entry udid previous value
+  for entry in ${FULL_SCREEN[@]+"${FULL_SCREEN[@]}"}; do
+    udid="${entry%%=*}"
+    previous="${entry#*=}"
+    case "$previous" in
+      "")
+        xcrun simctl spawn "$udid" defaults delete com.apple.springboard \
+          SBMedusaMultitaskingEnabled >/dev/null 2>&1 \
+          || printf 'warning: cannot delete SBMedusaMultitaskingEnabled on %s\n' "$udid" >&2
+        continue
+        ;;
+      1) value=true ;;
+      0) value=false ;;
+      *)
+        printf 'warning: cannot restore SBMedusaMultitaskingEnabled on %s: it was %s, not a bool\n' \
+          "$udid" "$previous" >&2
+        continue
+        ;;
+    esac
+    xcrun simctl spawn "$udid" defaults write com.apple.springboard \
+      SBMedusaMultitaskingEnabled -bool "$value" >/dev/null 2>&1 \
+      || printf 'warning: cannot restore SBMedusaMultitaskingEnabled=%s on %s\n' "$value" "$udid" >&2
+  done
+}
+trap 'clear_status_bars; restore_multitasking' EXIT
 
 # The UDID of the one available device with this name. `simctl status_bar` takes a UDID, and
 # two devices under one name would make "booted" ambiguous.
@@ -187,6 +220,10 @@ print(found[0])
 # ISO 8601 with milliseconds and a colon in the offset. It rejects `2007-01-09T09:41:00` and
 # `…00Z` as "non-ISO", and a bare `9:41` leaves the iPad's date at today's. The offset is
 # this Mac's on that day, because the simulator draws the time in the Mac's zone.
+#
+# 2007-01-09 is a Tuesday, the date of the iPhone's announcement, and the iPad draws it as
+# "Tue Jan 9". This holds only when `--time` goes in an override call of its own, after
+# every other flag. See `override_status_bar`.
 #
 # `/bin/date`, because a GNU `date` first on PATH has no `-j`.
 tour_time() {
@@ -215,8 +252,30 @@ override_status_bar() {
   OVERRIDDEN+=("$udid")
   # `discharging`, because a level alone draws a green charging battery.
   xcrun simctl status_bar "$udid" override \
-    --time "$bar_time" --cellularBars 4 --batteryLevel 100 --batteryState discharging \
+    --cellularBars 4 --batteryLevel 100 --batteryState discharging \
     || die "cannot override the status bar on $udid"
+  # The time in a call of its own, and last. An override call that sets any other
+  # flag, with `--time` or after it, keeps the month and day but loses the year:
+  # the iPad then draws the weekday of that date in 2000, "Sun Jan 9" for a Tuesday
+  # (issue #49).
+  xcrun simctl status_bar "$udid" override --time "$bar_time" \
+    || die "cannot override the status bar time on $udid"
+}
+
+# Puts the device in Full Screen Apps (Settings > Multitasking & Gestures) for the run. The
+# iPad simulator runs in Windowed Apps, which draws a resize grip in the bottom-right corner
+# of every window, a full-size one too, so every iPad capture showed it. Full Screen Apps
+# draws no grip and changes nothing else in a capture. SpringBoard reads the key at the
+# next app launch, with no reboot. Measured on the iOS 27.2 runtime. Only the iPad has
+# multitasking modes, so only the iPad run sets it.
+use_full_screen_apps() {
+  local udid="$1" previous
+  previous="$(xcrun simctl spawn "$udid" defaults read com.apple.springboard \
+    SBMedusaMultitaskingEnabled 2>/dev/null)" || previous=""
+  FULL_SCREEN+=("$udid=$previous")
+  xcrun simctl spawn "$udid" defaults write com.apple.springboard \
+    SBMedusaMultitaskingEnabled -bool false \
+    || die "cannot set Full Screen Apps on $udid"
 }
 
 # Runs the tour for one kind into $STAGE/raw/<kind>, and keeps only the LISTING captures.
@@ -229,6 +288,7 @@ capture() {
   fi
   note "capturing $kind on $device ($udid)"
   override_status_bar "$udid"
+  [[ "$kind" != ipad-13 ]] || use_full_screen_apps "$udid"
   rm -rf "$dir"
   mkdir -p "$dir" || die "cannot create $dir"
   # The tour reads its output directory from `TOWER_SCREENSHOT_DIR`
