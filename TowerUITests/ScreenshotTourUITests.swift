@@ -307,16 +307,19 @@ final class ScreenshotTourUITests: XCTestCase {
     app.buttons["Docker"].firstMatch.tap()
     XCTAssertTrue(app.staticTexts["code-server"].waitForExistence(timeout: 15))
     selectOnIPad(app.staticTexts["code-server"])
+    waitForLargeTitle(storeTitle(list: "Docker", selected: "code-server"), in: app)
     try capture(named: "docker")
 
     app.buttons["VMs"].firstMatch.tap()
     XCTAssertTrue(app.staticTexts["Debian Desktop"].waitForExistence(timeout: 15))
     selectOnIPad(app.staticTexts["Debian Desktop"])
+    waitForLargeTitle(storeTitle(list: "VMs", selected: "Debian Desktop"), in: app)
     try capture(named: "vms")
 
     app.buttons["Shares"].firstMatch.tap()
     XCTAssertTrue(app.staticTexts["appdata"].waitForExistence(timeout: 15))
     selectOnIPad(app.staticTexts["appdata"])
+    waitForLargeTitle(storeTitle(list: "Shares", selected: "appdata"), in: app)
     try capture(named: "shares")
 
     try captureArrScreens(in: app)
@@ -789,6 +792,53 @@ final class ScreenshotTourUITests: XCTestCase {
   private func selectOnIPad(_ row: XCUIElement) {
     guard UIDevice.current.userInterfaceIdiom == .pad else { return }
     row.tap()
+  }
+
+  // MARK: - Large titles (issue #50)
+
+  /// The title these store screens show large: the selected row's in the
+  /// iPad's detail column, and the list's own on iPhone, where nothing is
+  /// selected.
+  private func storeTitle(list: String, selected: String) -> String {
+    UIDevice.current.userInterfaceIdiom == .pad ? selected : list
+  }
+
+  /// The tallest a title's static text is in an inline bar. Measured on the
+  /// iPadOS and iOS 27.0 simulators: a large title's text is about 41 pt tall,
+  /// an inline one (the Docker log viewer's) about 21 pt.
+  private static let inlineTitleMaxHeight: CGFloat = 30
+
+  /// Waits until the navigation bar for `title` draws it as a large title, and
+  /// fails the test, so no capture is written, if it never does (issue #50).
+  ///
+  /// **The title's frame, not the bar's.** Both states publish the same
+  /// navigation bar and the same static text, with the same label and
+  /// identifier. The text's height tells them apart. The bar's height also
+  /// counts what else the bar holds: the iPad's list column bar, with its
+  /// search field, is 108 pt with an inline title, and the detail column's
+  /// large-title bar is 106 pt.
+  ///
+  /// Two polls in a row, so a frame read in mid-animation does not pass. The
+  /// printed line records how long the wait took and what the first poll saw.
+  private func waitForLargeTitle(_ title: String, in app: XCUIApplication, timeout: TimeInterval = 10) {
+    let text = app.navigationBars.matching(identifier: title).firstMatch.staticTexts[title]
+    let start = Date()
+    var first: String?
+    var largePolls = 0
+    while Date().timeIntervalSince(start) < timeout {
+      let height = text.exists ? text.frame.height : 0
+      first = first ?? (text.exists ? "\(height) pt" : "no title")
+      largePolls = height > Self.inlineTitleMaxHeight ? largePolls + 1 : 0
+      if largePolls == 2 {
+        let elapsed = String(format: "%.2f", Date().timeIntervalSince(start))
+        print("[large-title] '\(title)' large after \(elapsed) s, first poll: \(first ?? "-")")
+        return
+      }
+      Thread.sleep(forTimeInterval: 0.25)
+    }
+    XCTFail(
+      "'\(title)' never showed a large title in \(timeout) s (first poll: \(first ?? "-")):\n"
+        + app.navigationBars.debugDescription)
   }
 
   // MARK: - Capture
