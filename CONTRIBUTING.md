@@ -55,7 +55,7 @@ the `area:` label from your answer.
 - **Everything merges to `main` through a squash pull request whose body contains
   `Closes #<n>`.**
 - **Do not touch files outside the issue's scope.** Three shared files collide between
-  branches more than any others: `Tower.xcodeproj/project.pbxproj`,
+  branches more than any others: `Tower.xcodeproj/project.xcproj`,
   `graphql/schema.graphqls` and `apollo-codegen-config.json`. If one has to change, say so
   on the issue.
 - **Reproduce before you fix.** Write the failing test first and watch it fail as an

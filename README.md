@@ -112,8 +112,8 @@ UI test targets set `CODE_SIGNING_ALLOWED = NO`.
 A device build signs automatically with an Apple Development identity. The project file
 names the maintainer's team in `DEVELOPMENT_TEAM` and the bundle identifier
 `com.cunderw.tower`. To run on your own device, change `DEVELOPMENT_TEAM` and
-`PRODUCT_BUNDLE_IDENTIFIER` in the app target's Debug and Release configurations in
-`Tower.xcodeproj/project.pbxproj`, in your working copy only. Do not commit either change.
+`PRODUCT_BUNDLE_IDENTIFIER` in the `Tower` target's `build-settings` in
+`Tower.xcodeproj/project.xcproj`, in your working copy only. Do not commit either change.
 
 ## How it is put together
 

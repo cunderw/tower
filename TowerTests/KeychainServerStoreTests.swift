@@ -10,7 +10,7 @@ import TowerData
 /// entitlements, so every `SecItemAdd`/`SecItemUpdate` call fails with
 /// `errSecMissingEntitlement` (-34018) when the host process is unsigned.
 /// `TowerTests` is hosted by the `Tower` app (see `TEST_HOST`/`BUNDLE_LOADER`
-/// in `project.pbxproj`), and the `Tower` app target carries a real
+/// in `project.xcproj`), and the `Tower` app target carries a real
 /// (ad-hoc) code signature — so the host process has a keychain-access-group
 /// entitlement and these tests can hit the real keychain.
 ///

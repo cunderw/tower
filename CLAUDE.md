@@ -16,10 +16,33 @@ user adds.
 - **The scheme is committed** at `Tower.xcodeproj/xcshareddata/xcschemes/Tower.xcscheme`.
   Edit it by hand. Do not add an empty `<TestPlans></TestPlans>` element: xcodebuild then
   says the scheme "is not currently configured for the test action".
-- **The Xcode project is hand-authored, not generated.** `Tower.xcodeproj` uses
-  folder-synced groups (`PBXFileSystemSynchronizedRootGroup`), so a new file needs no
-  project edit. A new target or package product dependency needs a direct
-  `project.pbxproj` edit and a build. Do not add a generate step or `ci_scripts/`.
+- **The Xcode project is hand-authored, not generated.** The project file is
+  `Tower.xcodeproj/project.xcproj`, Xcode's JSON5 project format. Its top-level folders are
+  synced (`"kind": "folder"`), so a new file needs no project edit. A new target or
+  package product dependency needs a direct `project.xcproj` edit and a build. Do not add
+  a generate step or `ci_scripts/`.
+  - **`xcrun xcprojformatter --update Tower.xcodeproj` is the canonical printer.** Run it
+    after a hand edit. Xcode and the formatter strip comments from the file, so the
+    project's reasons live in the three bullets below, not in `project.xcproj`.
+  - **The `Tower` folder excludes `Info.plist` from the `Tower` target**
+    (`membership-exceptions`). The build reads the file through `INFOPLIST_FILE` and
+    `GENERATE_INFOPLIST_FILE`, and does not copy it as a bundle resource. Without the
+    exception, the synced folder also puts it in the Copy Bundle Resources phase, which
+    collides with the generated `Info.plist` at the same output path.
+  - **`THIRD-PARTY-NOTICES.md` is the only file entry outside a synced folder.** It sits
+    at the repository root, so it needs its own entry with `Tower/resources` membership
+    to reach the app's resources. `TowerTests/ThirdPartyNoticesTests.swift` fails if the
+    entry is dropped.
+  - **`TowerTests` declares no package products of its own.** It loads into the
+    `Tower.app` process through `BUNDLE_LOADER` and `TEST_HOST`. The app already links
+    `TowerCore` and `TowerData` (and, through them, Apollo) as static code in
+    `Tower.debug.dylib`, which `@testable import Tower` links. A package product on
+    `TowerTests` as well builds and embeds each framework a second time under
+    `Tower.app/PlugIns/TowerTests.xctest/Frameworks/`, so it loads twice at runtime.
+    Apple's docs warn that this "may cause spurious casting failures and mysterious
+    crashes." Do not add a `package-product-members` entry to `TowerTests`, or a file to
+    its frameworks phase, without a check that `Tower.app/PlugIns/TowerTests.xctest` in
+    the built products holds no `.framework` bundles.
 - **Secrets (Unraid API key, server URL) come from `.env.local`**, which is gitignored.
   Never commit them, and never let one reach a committed schema, log or test fixture.
 - **Never write a credential into a file, not even a temporary one.** Pass it through the
@@ -272,10 +295,9 @@ folder, so `raw/` and `background/` never reach App Store Connect.
 
 The release procedure lives outside this repo. These are the facts about the tree.
 
-- **`MARKETING_VERSION` appears twice** in `project.pbxproj`, in the app target's Debug and
-  Release configs. Change both. Each config's settings are on one long line, so edit by
-  config name. `Tower/Info.plist` has no version key, because `GENERATE_INFOPLIST_FILE =
-  YES` supplies it.
+- **`MARKETING_VERSION` appears once** in `project.xcproj`, under the `Tower` target's
+  `build-settings`, and applies to Debug and Release. `Tower/Info.plist` has no version
+  key, because `GENERATE_INFOPLIST_FILE = YES` supplies it.
 - **Never commit a `CURRENT_PROJECT_VERSION` bump.** The committed value is a placeholder.
   The build number is passed on the archive command line.
 - **A push to `main` that touches `Tower/`, `TowerKit/`, `TowerAPI/` or `Tower.xcodeproj/`
@@ -295,6 +317,6 @@ GitHub Issues track all work.
 - **One issue per branch.** Everything merges to `main` through a squash PR whose body
   has `Closes #<n>`. Commits reference their issue.
 - **Stay inside the issue's scope.** Flag a change to a shared file on the issue:
-  `project.pbxproj`, `graphql/schema.graphqls`, `apollo-codegen-config.json`.
+  `project.xcproj`, `graphql/schema.graphqls`, `apollo-codegen-config.json`.
 - **Labels: exactly one `area:` and one `type:` per issue.** `area:` is `ios`, `api`,
   `infra` or `design`. `type:` is `feature`, `bug`, `chore` or `design`.
