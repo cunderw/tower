@@ -192,9 +192,12 @@ struct FakeMetricsStream: MetricsStreaming {
     /// sensor, so the temperature row stays hidden.
     case liveWithoutSensor
     /// `live-metrics-fails`: CPU 47% and a temperature once a second for
-    /// `failureDelay`, then the stream fails. Long enough for a test to see
-    /// the live value before the fallback, and a reading every second so the
-    /// store's staleness check does not clear it first.
+    /// `failureDelay`, then the stream fails. `launch()` uses about 1 s of
+    /// that window before a UI test can read the screen, so a test that
+    /// waits for the 47% races the fallback. `DashboardUITests` waits for the
+    /// temperature row instead, which stays after the failure (issue #57).
+    /// It sends a reading every second, so the store's staleness check does
+    /// not clear the live values first.
     case failsAfterDelay
   }
 

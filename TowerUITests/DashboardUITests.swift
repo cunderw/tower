@@ -115,7 +115,8 @@ final class DashboardUITests: XCTestCase {
 
   /// Reads `element`'s accessibility value every 0.1 s until every one of
   /// `texts` has appeared in some reading, or `timeout` passes, and returns
-  /// the readings in order with their time since the first one.
+  /// the readings in order with their time since the call, so the first
+  /// reading is at about 0.1 s.
   /// Samples by hand, not through `XCTNSPredicateExpectation`: that one
   /// evaluates too seldom to see both phases of a value that alternates once a
   /// second (issue #57). Reads once more after the deadline.
