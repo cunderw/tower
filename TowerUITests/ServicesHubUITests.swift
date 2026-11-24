@@ -227,6 +227,11 @@ final class ServicesHubUITests: XCTestCase {
     app.launchArguments = ["--uitest-seed-dashboard"]
     app.launch()
     useTabBarLayout(in: app)
+    XCTAssertTrue(app.buttons["Dashboard"].firstMatch.waitForExistence(timeout: 10))
+    // The section was drawn as one item on a second page of the bar, behind
+    // a "Next Page" chevron, from launch on.
+    XCTAssertFalse(
+      app.buttons["Next Page"].exists, "the tab bar has a second page at launch")
     showSidebar(in: app)
     let tautulli = sidebarEntry("Tautulli", in: app)
     XCTAssertTrue(tautulli.waitForExistence(timeout: 10))
