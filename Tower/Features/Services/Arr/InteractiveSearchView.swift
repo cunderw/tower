@@ -30,7 +30,9 @@ struct InteractiveSearchView: View {
             // pushed to its far edge — it reads as broken layout and crowds
             // the title. The `Menu` keeps it to an icon; the `Picker` inside
             // still supplies the options and the checkmark on the current one.
-            Menu("Sort", systemImage: "arrow.up.arrow.down") {
+            // The current order is in the title, because a toolbar item's
+            // `accessibilityValue` does not reach the iOS 27 tree.
+            Menu("Sort by \(store.sort.displayName)", systemImage: "arrow.up.arrow.down") {
               Picker("Sort", selection: $store.sort) {
                 ForEach(ReleaseSort.allCases) { option in
                   Text(option.displayName).tag(option)
@@ -38,7 +40,6 @@ struct InteractiveSearchView: View {
               }
             }
             .accessibilityIdentifier("search.sort")
-            .accessibilityValue(store.sort.displayName)
           }
         }
         .confirmationDialog(

@@ -275,7 +275,6 @@ struct NZBGetServiceView: View {
           systemImage: store.isDownloadPaused ? "play.fill" : "pause.fill")
       }
       .accessibilityIdentifier("nzbget.globalPause")
-      .accessibilityValue(store.isDownloadPaused ? "Paused" : "Active")
     }
     ToolbarItem(placement: .topBarTrailing) {
       Button("Speed Limit", systemImage: "speedometer") { isShowingSpeedLimit = true }

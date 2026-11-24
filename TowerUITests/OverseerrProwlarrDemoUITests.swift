@@ -138,6 +138,38 @@ final class OverseerrProwlarrDemoUITests: XCTestCase {
       posted.waitForExistence(timeout: 20), "the comment never reached the thread")
   }
 
+  func testTheResolvedFilterNamesItsStateAndShowsResolvedIssues() {
+    let app = launchIntoDemo()
+    openService(overseerr, in: app)
+    XCTAssertTrue(anyRow(prefix: "overseerr.row.", in: app).waitForExistence(timeout: 20))
+
+    app.buttons["Issues"].firstMatch.tap()
+    XCTAssertTrue(
+      element("overseerr.issue.row.12", in: app).waitForExistence(timeout: 20),
+      "the demo's open issue never loaded")
+    XCTAssertFalse(element("overseerr.issue.row.13", in: app).exists)
+
+    // The state is read from the label. On iOS 27 a toolbar button's
+    // `accessibilityValue` does not reach the tree.
+    let filter = element("overseerr.issues.filter", in: app)
+    XCTAssertTrue(filter.waitForExistence(timeout: 10))
+    XCTAssertEqual(filter.label, "Show Resolved Issues")
+
+    filter.tap()
+
+    // By predicate, not a plain read: the toggle reloads the list, and the
+    // toolbar leaves the tree while the load runs.
+    let hiding = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == 'Hide Resolved Issues'"),
+      object: element("overseerr.issues.filter", in: app))
+    XCTAssertEqual(
+      XCTWaiter().wait(for: [hiding], timeout: 20), .completed,
+      "the filter did not name its new state")
+    XCTAssertTrue(
+      element("overseerr.issue.row.13", in: app).waitForExistence(timeout: 20),
+      "the resolved demo issue never appeared")
+  }
+
   // MARK: - Prowlarr: the indexer list
 
   func testTheIndexerListShowsAFailingIndexerAndTestsOne() {
