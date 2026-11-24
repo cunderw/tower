@@ -57,7 +57,7 @@ final class DashboardUITests: XCTestCase {
     XCTAssertTrue(element(identifier: "services.shares", in: app).exists, "services.shares row missing on a loaded dashboard")
   }
 
-  func testFailedDashboardShowsContentUnavailableViewAndTryAgainRecovers() {
+  func testFailedDashboardShowsContentUnavailableViewAndTryAgainRecovers() throws {
     let app = launch(state: "retry-succeeds")
 
     // `dashboard.error`/`dashboard.retry` let this match by
@@ -68,6 +68,7 @@ final class DashboardUITests: XCTestCase {
 
     let tryAgain = element(identifier: "dashboard.retry", in: app)
     XCTAssertTrue(tryAgain.waitForExistence(timeout: 5), "dashboard.retry button never appeared on the failed dashboard")
+    try saveScreenshot(named: "dashboard-error")
 
     tryAgain.tap()
 
