@@ -40,5 +40,3 @@ apollo-ios-cli
 # App Store screenshots are **committed**, under docs/app-store-assets/ — see
 # CLAUDE.md. They are the assets uploaded to App Store Connect, so their diff
 # is the listing's diff.
-# A run's capture.json result sits beside each set and holds local paths.
-docs/app-store-assets/*.capture.json
