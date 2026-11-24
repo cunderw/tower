@@ -160,8 +160,9 @@ fails in the full suite.
   `tearDown`, and classes that navigate by tab call `useTabBarLayout`
   (`TowerUITests/XCTestCase+Sidebar.swift`) on launch. Keep both.
 - **The sidebar toggle's identifier changes case with its state**: `ToggleSideBar` with
-  the tab bar showing, `ToggleSidebar` with the sidebar up. Address it by the label
-  `Hide Sidebar`.
+  the tab bar showing, `ToggleSidebar` with the sidebar up. Address it by identifier,
+  with a case-sensitive match. Never use the label `Hide Sidebar`: the Services hub's
+  split-view column toggle has that label too, and no identifier.
 - **With the sidebar showing, two elements are labelled "Services"**: the hub tab and the
   collapsible section header. Tapping by label can collapse the section.
 - **`navigationBars.buttons` by index is not "back" on iPad.** `navigationBars` spans both

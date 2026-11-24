@@ -23,6 +23,9 @@ struct RootView: View {
   /// bar. Reported up from the tabs by `TabSidebarAvailabilityReader`, because
   /// the environment value reads `false` anywhere above the `TabView`.
   @State private var isTabSidebarAvailable = TabSidebarAvailabilityReader.initialValue
+  /// Where the `TabView` draws its tabs now, reported up the same way. `nil`
+  /// until the first report. `open(service:)` reads it.
+  @State private var tabBarPlacement: TabBarPlacement?
 
   @State private var selection: TowerDestination = .tab(.dashboard)
   /// The Docker and Services lists' selections, **owned here** because the
@@ -114,13 +117,19 @@ struct RootView: View {
 
   /// Jumps to the Services tab with `instance` open.
   ///
-  /// With the sidebar's Services section the jump is direct; without it, it is
-  /// the hub tab plus the hub's selection, which `ListDetailScaffold` turns
-  /// into a push or a split-view detail. Never `.service` without the section:
-  /// that would select a tab that does not exist.
+  /// With the sidebar showing, the jump is direct, to the instance's entry in
+  /// the Services section. Otherwise it is the hub tab plus the hub's
+  /// selection, which `ListDetailScaffold` turns into a push or a split-view
+  /// detail. Never `.service` without the section: that would select a tab
+  /// that does not exist.
+  ///
+  /// Not `.service` under the iPad top tab bar either, although the section
+  /// exists there. iPadOS then draws the selected entry as a second "Services"
+  /// item beside the hub tab (issue #20).
   private func open(service instance: ServiceInstance) {
     servicesSelection = instance.id
-    selection = showsServiceTabs ? .service(instance.id) : .tab(.services)
+    selection =
+      showsServiceTabs && tabBarPlacement == .sidebar ? .service(instance.id) : .tab(.services)
   }
 
   private func open(container: Container) {
@@ -140,7 +149,9 @@ struct RootView: View {
           isSelected: selection == .tab(.dashboard)
         )
         .accessibilityIdentifier("tab.dashboard.content")
-        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
+        .modifier(
+          TabSidebarAvailabilityReader(
+            isAvailable: $isTabSidebarAvailable, placement: $tabBarPlacement))
       }
       Tab(TowerTab.docker.title, systemImage: TowerTab.docker.systemImage, value: TowerDestination.tab(.docker)) {
         DockerListView(
@@ -154,7 +165,9 @@ struct RootView: View {
           openService: open(service:)
         )
         .accessibilityIdentifier("tab.docker.content")
-        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
+        .modifier(
+          TabSidebarAvailabilityReader(
+            isAvailable: $isTabSidebarAvailable, placement: $tabBarPlacement))
       }
       Tab(TowerTab.vms.title, systemImage: TowerTab.vms.systemImage, value: TowerDestination.tab(.vms)) {
         VMListView(
@@ -165,7 +178,9 @@ struct RootView: View {
           isSelected: selection == .tab(.vms)
         )
         .accessibilityIdentifier("tab.vms.content")
-        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
+        .modifier(
+          TabSidebarAvailabilityReader(
+            isAvailable: $isTabSidebarAvailable, placement: $tabBarPlacement))
       }
       Tab(TowerTab.shares.title, systemImage: TowerTab.shares.systemImage, value: TowerDestination.tab(.shares)) {
         ShareListView(
@@ -176,7 +191,9 @@ struct RootView: View {
           isSelected: selection == .tab(.shares)
         )
         .accessibilityIdentifier("tab.shares.content")
-        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
+        .modifier(
+          TabSidebarAvailabilityReader(
+            isAvailable: $isTabSidebarAvailable, placement: $tabBarPlacement))
       }
       Tab(TowerTab.services.title, systemImage: TowerTab.services.systemImage, value: TowerDestination.tab(.services)) {
         ServicesHubView(
@@ -197,7 +214,9 @@ struct RootView: View {
           selection: $servicesSelection
         )
         .accessibilityIdentifier("tab.services.content")
-        .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
+        .modifier(
+          TabSidebarAvailabilityReader(
+            isAvailable: $isTabSidebarAvailable, placement: $tabBarPlacement))
       }
       // The iPad sidebar's Services section: every configured instance by name,
       // one tap from anywhere. See `showsServiceTabs` for where it appears.
@@ -225,7 +244,9 @@ struct RootView: View {
                   )
               }
               .accessibilityIdentifier("tab.service.\(instance.id.uuidString).content")
-              .modifier(TabSidebarAvailabilityReader(isAvailable: $isTabSidebarAvailable))
+              .modifier(
+                TabSidebarAvailabilityReader(
+                  isAvailable: $isTabSidebarAvailable, placement: $tabBarPlacement))
             }
           }
         }
@@ -260,10 +281,14 @@ struct RootView: View {
     .task { servicesStore.reloadInstances() }
     // An instance tab that disappears while selected (an iPad Split View
     // narrowed to compact) would leave the selection on a tab that no longer
-    // exists. `open(service:)` already set the hub's selection to it, so the
-    // hub tab shows the same instance.
+    // exists. The hub tab shows the same instance instead. The hub's selection
+    // comes from the case, because a sidebar tap selects `.service` without
+    // going through `open(service:)`.
     .onChange(of: showsServiceTabs) {
-      if !showsServiceTabs, case .service = selection { selection = .tab(.services) }
+      if !showsServiceTabs, case .service(let id) = selection {
+        servicesSelection = id
+        selection = .tab(.services)
+      }
     }
   }
 
@@ -275,16 +300,23 @@ struct RootView: View {
   }
 }
 
-/// Reports `isTabViewSidebarAvailable` from inside a tab's content up to
-/// `RootView`, which builds the `TabView` and so cannot read it itself.
+/// Reports `isTabViewSidebarAvailable` and `tabBarPlacement` from inside a
+/// tab's content up to `RootView`, which builds the `TabView` and so cannot
+/// read them itself.
 ///
-/// The value, not `tabBarPlacement`: on iPad the placement flips between
-/// `topBar` and `sidebar` as the person toggles the sidebar, and removing the
-/// instance tabs on that toggle would drop a selected instance. Availability
-/// stays `true` on iPad in both layouts, and is `false` on an iPhone, the
-/// unfolded iPhone Duo included.
+/// Availability, not the placement, decides whether the Services section
+/// exists: on iPad the placement flips between `topBar` and `sidebar` as the
+/// person toggles the sidebar, and removing the instance tabs on that toggle
+/// would drop a selected instance. Availability stays `true` on iPad in both
+/// layouts, and is `false` on an iPhone, the unfolded iPhone Duo included.
+///
+/// The placement decides how `RootView.open(service:)` reaches an instance. It
+/// is `topBar` and `sidebar` on iPad and `bottomBar` on a phone. A portrait
+/// sidebar is an overlay, so the placement is `sidebar` only while it is open.
 struct TabSidebarAvailabilityReader: ViewModifier {
   @Binding var isAvailable: Bool
+  @Binding var placement: TabBarPlacement?
+  @Environment(\.tabBarPlacement) private var tabBarPlacement
 
   /// Before any tab has reported, a guess the first report corrects. It has
   /// to be right on iPad, not merely safe: a `TabView` first built without the
@@ -302,10 +334,13 @@ struct TabSidebarAvailabilityReader: ViewModifier {
   }
 
   func body(content: Content) -> some View {
+    let reported = content.onChange(of: tabBarPlacement, initial: true) {
+      placement = tabBarPlacement
+    }
     if #available(iOS 27, *) {
-      content.modifier(Reader(isAvailable: $isAvailable))
+      reported.modifier(Reader(isAvailable: $isAvailable))
     } else {
-      content
+      reported
     }
   }
 
