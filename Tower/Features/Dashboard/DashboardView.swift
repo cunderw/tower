@@ -82,6 +82,9 @@ struct DashboardView: View {
         } description: {
           if let suggestion = error.recoverySuggestion { Text(suggestion) }
         }
+        // At its own height, not all the free height: otherwise it pushes the
+        // button down onto the floating tab bar. Matches `DockerListView`.
+        .fixedSize(horizontal: false, vertical: true)
         // Without `.combine`, SwiftUI treats `ContentUnavailableView`'s label
         // and description as separate accessibility elements and pushes
         // `.accessibilityIdentifier` down onto both of them — two elements

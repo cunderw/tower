@@ -67,6 +67,8 @@ struct ShareListView: View {
         } description: {
           if let suggestion = error.recoverySuggestion { Text(suggestion) }
         }
+        // Keeps Try Again off the tab bar; see `DockerListView`'s error branch.
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("shares.error")
 

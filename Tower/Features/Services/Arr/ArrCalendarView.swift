@@ -26,6 +26,8 @@ struct ArrCalendarView: View {
         } description: {
           if let suggestion = error.serviceRecoverySuggestion { Text(suggestion) }
         }
+        // Keeps Try Again off the tab bar; see `DockerListView`'s error branch.
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("calendar.error")
         Button("Try Again") { Task { await store.load() } }
           .accessibilityIdentifier("calendar.retry")
@@ -151,6 +153,8 @@ struct ArrHistoryView: View {
         } description: {
           if let suggestion = error.serviceRecoverySuggestion { Text(suggestion) }
         }
+        // Keeps Try Again off the tab bar; see `DockerListView`'s error branch.
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("history.error")
         Button("Try Again") { Task { await store.load() } }
           .accessibilityIdentifier("history.retry")

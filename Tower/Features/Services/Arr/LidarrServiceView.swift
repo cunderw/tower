@@ -50,6 +50,8 @@ struct LidarrServiceView: View {
         } description: {
           if let suggestion = error.serviceRecoverySuggestion { Text(suggestion) }
         }
+        // Keeps Try Again off the tab bar; see `DockerListView`'s error branch.
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("lidarr.library.error")
         Button("Try Again") { Task { await store.load() } }
