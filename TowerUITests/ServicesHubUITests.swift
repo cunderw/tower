@@ -285,6 +285,19 @@ final class ServicesHubUITests: XCTestCase {
     XCTAssertEqual(tabBarItems(labelled: "Dashboard", in: app), 1, "after Docker: no Dashboard")
     // Docker is a split view, so its gear sits in the list column below the bar.
     XCTAssertEqual(gearsOverlappingTheTabBar(in: app), 0, "after Docker: gear under the bar")
+
+    // A `TabView` rebuild can move the Dashboard's bell and gear to a second
+    // row under the bar (PR #19). The Dashboard has one column, so its gear
+    // belongs on the bar's row.
+    let dashboard = app.buttons.matching(NSPredicate(format: "label == 'Dashboard'"))
+      .allElementsBoundByIndex.first { abs($0.frame.midY - barMidY) < 1 }
+    try XCTUnwrap(dashboard, "no Dashboard item on the tab bar's row").tap()
+    XCTAssertTrue(
+      app.descendants(matching: .any).matching(identifier: "tab.dashboard.content").firstMatch
+        .waitForExistence(timeout: 10))
+    XCTAssertEqual(
+      tabBarItems(labelled: "Settings", in: app), 1,
+      "after the rebuild: the Dashboard's gear is not on the tab bar's row")
   }
 
   func testInstancesStayOutOfATabBarWithNoSidebar() throws {

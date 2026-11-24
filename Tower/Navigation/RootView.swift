@@ -132,10 +132,12 @@ struct RootView: View {
   /// that does not exist.
   ///
   /// Not `.service` under the iPad top tab bar either, although the section
-  /// exists there. iPadOS then draws the selected entry as a second "Services"
-  /// item beside the hub tab (issue #20). A tap on an entry in the sidebar
-  /// overlay does select `.service` there, without this function, and
-  /// `leaveSidebar(from:)` moves that selection to the hub (issue #37).
+  /// exists there, in the sidebar overlay. The section is `.sidebarOnly`, so
+  /// a selected entry is not one of the bar's items. iPadOS then adds it to the
+  /// bar as a temporary item and pages the bar past Dashboard (issue #37).
+  /// The sidebar overlay selects `.service` without this function, so
+  /// `leaveSidebar(from:)` moves that selection to the hub and rebuilds the
+  /// `TabView` to remove the temporary item.
   private func open(service instance: ServiceInstance) {
     servicesSelection = instance.id
     selection =
