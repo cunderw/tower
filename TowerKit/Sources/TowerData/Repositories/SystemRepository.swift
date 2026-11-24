@@ -31,8 +31,8 @@ public protocol SystemRepositoryProtocol: Sendable {
   /// state while Unraid works, or `nil` when the request timed out. Throws on
   /// a GraphQL error, such as "The array is already started".
   ///
-  /// `passphrase` unlocks an encrypted array on start. It goes into this one
-  /// request and nowhere else.
+  /// `passphrase` unlocks an encrypted array on start. It goes into the
+  /// request body, and the result is not written to Apollo's cache (issue #55).
   func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String?
 }
 
@@ -136,6 +136,11 @@ public struct LiveSystemRepository: SystemRepositoryProtocol {
   /// `URLError.timedOut` returns `nil` here, not `.serverUnreachable`: the
   /// server took the request, and the caller polls `dashboard()` to learn
   /// what happened.
+  ///
+  /// `writeResultsToCache: false` keeps the passphrase out of Apollo's
+  /// in-memory cache (issue #55). Apollo keys a cached field by its
+  /// arguments, so a cached result keeps `decryptionPassword` in its keys
+  /// until the app quits.
   public func setArrayState(_ action: ArrayAction, passphrase: String?) async throws -> String? {
     let desiredState: ArrayStateInputState = switch action {
     case .start: .start
@@ -149,7 +154,7 @@ public struct LiveSystemRepository: SystemRepositoryProtocol {
     do {
       response = try await provider.client.perform(
         mutation: SetArrayStateMutation(input: input),
-        requestConfiguration: RequestConfiguration(requestTimeout: arrayStateTimeout)
+        requestConfiguration: RequestConfiguration(requestTimeout: arrayStateTimeout, writeResultsToCache: false)
       )
     } catch let error as URLError where error.code == .timedOut {
       return nil
