@@ -109,8 +109,33 @@ struct ListDetailScaffold<SelectionID: Hashable, Sidebar: View, Detail: View>: V
         .id(selection)
       }
       .navigationSplitViewStyle(.balanced)
+      // Keeps both columns' bars at one height under the top tab bar. See
+      // `SplitViewBarAnchor`.
+      .background { SplitViewBarAnchor() }
     }
   }
+}
+
+/// An empty child view controller beside the split view. It keeps the
+/// columns' bars from dropping 44 pt after a push (issue #40).
+///
+/// **Its presence is the fix; it draws and does nothing.** Do not remove it as
+/// dead code. `SplitViewBarPositionUITests` fails without it.
+///
+/// What was measured, on the iPadOS 27.0 simulator under the top tab bar: the
+/// tab puts the split view below the tab bar. After any push in the detail
+/// column, UIKit also gives each column a 54 pt top inset for the tab bar, so
+/// both columns' bars move from y=106 to y=150. They stay there after Back and
+/// after another row is selected. With a child view controller beside the
+/// split view, the columns keep a top inset of 0, and the bars stay at 106
+/// after a push, after Back, and after a tab switch.
+///
+/// A plain `UIView` (`UIViewRepresentable`) or `Color.clear` in the same place
+/// does not do this; only a view controller does. This depends on UIKit
+/// behaviour that Apple does not document, so check it again on a new iPadOS.
+private struct SplitViewBarAnchor: UIViewControllerRepresentable {
+  func makeUIViewController(context: Context) -> UIViewController { UIViewController() }
+  func updateUIViewController(_ controller: UIViewController, context: Context) {}
 }
 
 /// The detail column's "nothing selected yet" copy. A struct rather than four
