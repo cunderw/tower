@@ -49,9 +49,7 @@ final class InteractiveSearchUITests: XCTestCase {
   /// immediately `buttons["Age"]` works on a phone and finds nothing at all on
   /// an iPad.
   private func chooseSort(_ option: String, in app: XCUIApplication) {
-    let picker = app.buttons["search.sort"].firstMatch.exists
-      ? app.buttons["search.sort"].firstMatch
-      : element("search.sort", in: app)
+    let picker = sortControl(in: app)
     XCTAssertTrue(picker.waitForExistence(timeout: 10), "no sort control in the toolbar")
     picker.tap()
 
@@ -60,6 +58,14 @@ final class InteractiveSearchUITests: XCTestCase {
     let choice = sortOption(option, in: app)
     XCTAssertTrue(choice.waitForExistence(timeout: 10), "the sort menu never opened")
     choice.tap()
+  }
+
+  /// The toolbar's sort control: a button descendant where one exists (iPad),
+  /// the identified element otherwise.
+  private func sortControl(in app: XCUIApplication) -> XCUIElement {
+    app.buttons["search.sort"].firstMatch.exists
+      ? app.buttons["search.sort"].firstMatch
+      : element("search.sort", in: app)
   }
 
   /// The menu's option, whatever element type this device wraps it in.
@@ -117,8 +123,18 @@ final class InteractiveSearchUITests: XCTestCase {
     XCTAssertLessThan(
       release("release-approved", in: app).frame.origin.y,
       release("release-rejected", in: app).frame.origin.y)
+    // The current order is in the title. On iOS 27 a toolbar item's
+    // `accessibilityValue` does not reach the tree, so VoiceOver reads it
+    // from the label.
+    XCTAssertEqual(sortControl(in: app).label, "Sort by Best match")
 
     chooseSort("Age", in: app)
+
+    let sortedByAge = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label == 'Sort by Age'"), object: sortControl(in: app))
+    XCTAssertEqual(
+      XCTWaiter().wait(for: [sortedByAge], timeout: 10), .completed,
+      "the sort control did not name the new order")
 
     // Twelve hours old beats four days, whatever the *arr thinks of it.
     XCTAssertTrue(
