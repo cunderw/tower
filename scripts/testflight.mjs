@@ -198,12 +198,23 @@ async function distributeExternally(appId, build, notes) {
     report(`Beta App Review: not submitted, externalBuildState is ${state}` + reviewNext(state));
     return;
   }
-  await whenBuildKnown('Beta App Review', () => api('POST', '/v1/betaAppReviewSubmissions', {
-    data: {
-      type: 'betaAppReviewSubmissions',
-      relationships: { build: { data: { type: 'builds', id: build.id } } },
-    },
-  }));
+  try {
+    await whenBuildKnown('Beta App Review', () => api('POST', '/v1/betaAppReviewSubmissions', {
+      data: {
+        type: 'betaAppReviewSubmissions',
+        relationships: { build: { data: { type: 'builds', id: build.id } } },
+      },
+    }));
+  } catch (error) {
+    // Two merges in quick succession leave the first build in review when the second asks.
+    // The build is uploaded and in its group, so this is a state to report, not a failure.
+    if (error.status !== 422 || !error.message.includes('ENTITY_UNPROCESSABLE.ANOTHER_BUILD_IN_REVIEW')) {
+      throw error;
+    }
+    report('Beta App Review: not submitted, another build of this version is in review; ' +
+      'submit this build after that review completes');
+    return;
+  }
   report('Beta App Review: submitted');
 }
 
