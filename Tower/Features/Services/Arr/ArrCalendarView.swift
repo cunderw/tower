@@ -28,6 +28,7 @@ struct ArrCalendarView: View {
         }
         // Keeps Try Again off the tab bar; see `DockerListView`'s error branch.
         .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("calendar.error")
         Button("Try Again") { Task { await store.load() } }
           .accessibilityIdentifier("calendar.retry")
@@ -155,6 +156,7 @@ struct ArrHistoryView: View {
         }
         // Keeps Try Again off the tab bar; see `DockerListView`'s error branch.
         .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("history.error")
         Button("Try Again") { Task { await store.load() } }
           .accessibilityIdentifier("history.retry")

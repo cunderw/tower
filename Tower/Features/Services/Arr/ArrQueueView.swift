@@ -68,6 +68,7 @@ struct ArrQueueView: View {
         }
         // Keeps Try Again off the tab bar; see `DockerListView`'s error branch.
         .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("queue.error")
         Button("Try Again") { Task { await store.load() } }
           .accessibilityIdentifier("queue.retry")
