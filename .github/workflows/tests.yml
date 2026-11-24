@@ -36,6 +36,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The project file is Xcode's JSON5 format (project.xcproj), which an older Xcode
+      # cannot read. This reads the same facts testflight.yml reads before it archives, so
+      # a pull request finds a project the runner's Xcode cannot open. It needs no secret.
+      - name: Read the project
+        run: |
+          xcodebuild -version
+          xcodebuild -list -project Tower.xcodeproj
+          xcodebuild -project Tower.xcodeproj -target Tower -configuration Release \
+            -showBuildSettings 2>/dev/null > "$RUNNER_TEMP/settings.txt"
+          setting() { awk -v k="$1" '$1 == k && $2 == "=" { print $3; exit }' "$RUNNER_TEMP/settings.txt"; }
+          for key in PRODUCT_BUNDLE_IDENTIFIER DEVELOPMENT_TEAM MARKETING_VERSION; do
+            value="$(setting "$key")"
+            [ -n "$value" ] || { echo "::error::no $key in the build settings"; exit 1; }
+            echo "$key=$value"
+          done
+
       - name: swift test
         run: swift test --package-path TowerKit 2>&1 | tee "$RUNNER_TEMP/kit.log"
 
