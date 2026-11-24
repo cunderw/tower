@@ -172,20 +172,33 @@ clear_status_bars() {
 # The devices this run has put in Full Screen Apps, each as `udid=previous`. `previous` is
 # the key's earlier value, or empty when the device had no value.
 FULL_SCREEN=()
-# Best-effort, like `clear_status_bars`. Other gates run on the same simulators, so the
-# multitasking mode goes back to what it was.
+# Best-effort, like `clear_status_bars`: a failure prints a warning and does not change the
+# run's status. Other gates run on the same simulators, so the multitasking mode goes back
+# to what it was. `defaults read` prints a bool as 1 or 0, and `defaults write -bool`
+# rejects both, so the value is mapped to true or false first.
 restore_multitasking() {
-  local entry udid previous
+  local entry udid previous value
   for entry in ${FULL_SCREEN[@]+"${FULL_SCREEN[@]}"}; do
     udid="${entry%%=*}"
     previous="${entry#*=}"
-    if [[ -z "$previous" ]]; then
-      xcrun simctl spawn "$udid" defaults delete com.apple.springboard \
-        SBMedusaMultitaskingEnabled >/dev/null 2>&1 || true
-    else
-      xcrun simctl spawn "$udid" defaults write com.apple.springboard \
-        SBMedusaMultitaskingEnabled -bool "$previous" >/dev/null 2>&1 || true
-    fi
+    case "$previous" in
+      "")
+        xcrun simctl spawn "$udid" defaults delete com.apple.springboard \
+          SBMedusaMultitaskingEnabled >/dev/null 2>&1 \
+          || printf 'warning: cannot delete SBMedusaMultitaskingEnabled on %s\n' "$udid" >&2
+        continue
+        ;;
+      1) value=true ;;
+      0) value=false ;;
+      *)
+        printf 'warning: cannot restore SBMedusaMultitaskingEnabled on %s: it was %s, not a bool\n' \
+          "$udid" "$previous" >&2
+        continue
+        ;;
+    esac
+    xcrun simctl spawn "$udid" defaults write com.apple.springboard \
+      SBMedusaMultitaskingEnabled -bool "$value" >/dev/null 2>&1 \
+      || printf 'warning: cannot restore SBMedusaMultitaskingEnabled=%s on %s\n' "$value" "$udid" >&2
   done
 }
 trap 'clear_status_bars; restore_multitasking' EXIT
