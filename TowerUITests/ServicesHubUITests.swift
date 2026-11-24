@@ -268,6 +268,23 @@ final class ServicesHubUITests: XCTestCase {
     XCTAssertFalse(app.buttons["Next Page"].exists, "the tab bar has a second page")
     XCTAssertEqual(
       tabBarItems(labelled: "Dashboard", in: app), 1, "Dashboard is not on the tab bar's row")
+
+    // The temporary item stayed on the bar after the next tab change too.
+    let barMidY = app.buttons["ToggleSideBar"].firstMatch.frame.midY
+    let docker = app.buttons.matching(NSPredicate(format: "label == 'Docker'"))
+      .allElementsBoundByIndex.first { abs($0.frame.midY - barMidY) < 1 }
+    try XCTUnwrap(docker, "no Docker item on the tab bar's row").tap()
+    XCTAssertTrue(
+      app.descendants(matching: .any).matching(identifier: "tab.docker.content").firstMatch
+        .waitForExistence(timeout: 10))
+    for line in tabBarRowDescription(in: app) { print("[tab-bar-row docker] \(line)") }
+    try saveScreenshot(named: "services-overlay-after-docker")
+    XCTAssertEqual(tabBarItems(labelled: "Services", in: app), 1, "after Docker: Services count")
+    XCTAssertEqual(tabBarItems(labelled: "Tautulli", in: app), 0, "after Docker: temporary item")
+    XCTAssertFalse(app.buttons["Previous Page"].exists, "after Docker: paged past Dashboard")
+    XCTAssertEqual(tabBarItems(labelled: "Dashboard", in: app), 1, "after Docker: no Dashboard")
+    XCTAssertEqual(
+      tabBarItems(labelled: "Settings", in: app), 1, "after Docker: the gear is off the bar's row")
   }
 
   func testInstancesStayOutOfATabBarWithNoSidebar() throws {
