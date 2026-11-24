@@ -57,7 +57,7 @@ final class DashboardUITests: XCTestCase {
     XCTAssertTrue(element(identifier: "services.shares", in: app).exists, "services.shares row missing on a loaded dashboard")
   }
 
-  func testFailedDashboardShowsContentUnavailableViewAndTryAgainRecovers() {
+  func testFailedDashboardShowsContentUnavailableViewAndTryAgainRecovers() throws {
     let app = launch(state: "retry-succeeds")
 
     // `dashboard.error`/`dashboard.retry` let this match by
@@ -68,6 +68,12 @@ final class DashboardUITests: XCTestCase {
 
     let tryAgain = element(identifier: "dashboard.retry", in: app)
     XCTAssertTrue(tryAgain.waitForExistence(timeout: 5), "dashboard.retry button never appeared on the failed dashboard")
+    try saveScreenshot(named: "dashboard-error")
+
+    // Issue #13: Try Again sits directly under the message, not down on the
+    // floating tab bar. Same bound as `VMUITests`' failed-load test.
+    let gap = tryAgain.frame.minY - message.frame.maxY
+    XCTAssertLessThan(gap, 100, "Try Again sits \(gap) pt below the message, not directly under it")
 
     tryAgain.tap()
 

@@ -164,8 +164,8 @@ struct TowerApp: App {
       // Same reason as the Docker line above: the VMs tab is a real
       // `VMListView`. Its own `UITEST_VMS_STATE` is read
       // inside `FakeVMRepository.domains()` — it selects an
-      // inventory-wide outcome (`unavailable`, `empty`, or the seeded
-      // five), and reading it there rather than switching on it here
+      // inventory-wide outcome (`unavailable`, `empty`, `failure`, or the
+      // seeded five), and reading it there rather than switching on it here
       // keeps the "VMs unavailable" case a property of the fixture data
       // rather than a third launch argument.
       environment.makeVMRepository = { _ in FakeVMRepository() }

@@ -712,7 +712,9 @@ private final class UpdatedContainerIDs: @unchecked Sendable {
 /// `UITEST_DASHBOARD_STATE` rather than `UITEST_DOCKER_STATE` (which selects a
 /// behaviour *across* calls): `unavailable` returns `nil` domains — the
 /// "VM manager isn't reporting" state that must not read as "no VMs" — `empty`
-/// returns `[]`, and anything else returns the five fixtures.
+/// returns `[]`, `failure` throws `AppError.serverUnreachable` on every call —
+/// the failed state with its Try Again button — and anything else returns the
+/// five fixtures.
 /// Unlike `FakeDockerRepository`'s five state actions, this one **mutates in
 /// memory**: the VM actions return `Boolean!`, so `VMStore.perform(_:on:)` re-fetches
 /// `domains()` instead of merging a returned state (see its doc comment). A
@@ -734,6 +736,7 @@ struct FakeVMRepository: VMRepositoryProtocol {
     switch ProcessInfo.processInfo.environment["UITEST_VMS_STATE"] {
     case "unavailable": return VMInventory(domains: nil)
     case "empty": return VMInventory(domains: [])
+    case "failure": throw AppError.serverUnreachable
     default: return VMInventory(domains: states.current())
     }
   }

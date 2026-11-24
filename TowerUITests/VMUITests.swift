@@ -141,6 +141,27 @@ final class VMUITests: XCTestCase {
     )
   }
 
+  // MARK: - Failed load
+
+  func testFailedLoadKeepsTryAgainUnderTheMessage() throws {
+    // Issue #13. Left to itself `ContentUnavailableView` takes all the free
+    // height, which pushes the sibling Try Again button down onto the floating
+    // tab bar. `fixedSize` keeps the pair together; the gap check fails
+    // without it.
+    let app = launchOnVMs(state: "failure")
+
+    let error = app.descendants(matching: .any).matching(identifier: "vms.error").firstMatch
+    XCTAssertTrue(error.waitForExistence(timeout: 10), "vms.error never appeared on a failed load")
+    let retry = app.buttons["vms.retry"]
+    XCTAssertTrue(retry.exists, "the failed state lost its Try Again button")
+    try saveScreenshot(named: "vms-error")
+
+    // About 62 pt with `fixedSize` (the view's own padding plus the stack's
+    // 16 pt spacing) and about 227 pt without it on iPhone 17.
+    let gap = retry.frame.minY - error.frame.maxY
+    XCTAssertLessThan(gap, 100, "Try Again sits \(gap) pt below the message, not directly under it")
+  }
+
   // MARK: - Detail
 
   func testDetailOffersTheRunningActionSetAndNotStart() {

@@ -68,12 +68,18 @@ struct VMListView: View {
       // Same shape as `DockerListView`'s error branch — the retry button is a
       // sibling of `ContentUnavailableView` rather than its `actions:` closure
       // so the combined accessibility element doesn't swallow it.
+      //
+      // The `ContentUnavailableView` is `fixedSize` vertically, as in
+      // `DockerListView`. Left to itself it takes all the free height, which
+      // pushes the button down onto the floating tab bar; at its own height
+      // the `VStack` centres the pair instead.
       VStack(spacing: 16) {
         ContentUnavailableView {
           Label(error.message, systemImage: "exclamationmark.triangle")
         } description: {
           if let suggestion = error.recoverySuggestion { Text(suggestion) }
         }
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("vms.error")
 
