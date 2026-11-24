@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// Jumping between a service and the Docker container running it.
@@ -15,6 +16,15 @@ final class ServiceContainerLinkUITests: XCTestCase {
   override func setUp() {
     super.setUp()
     continueAfterFailure = false
+  }
+
+  /// Puts the iPad back on the tab bar, as `ServicesHubUITests` does: the
+  /// sidebar test here leaves the sidebar on in the simulator, and every later
+  /// class then finds two elements labelled "Services". `async throws`, for the
+  /// reason `ServicesHubUITests.tearDown()` gives.
+  override func tearDown() async throws {
+    useTabBarLayout(in: XCUIApplication())
+    try await super.tearDown()
   }
 
   private func launch(services: String = "container-linked") -> XCUIApplication {
@@ -50,6 +60,76 @@ final class ServiceContainerLinkUITests: XCTestCase {
     XCTAssertTrue(
       element("arr.shell", in: app).waitForExistence(timeout: 15),
       "tapping the service link did not open the service")
+  }
+
+  func testOnIPadTheTabBarKeepsOneServicesItemAfterTheLink() throws {
+    // Issue #20: under the top tab bar the link selected the instance's entry
+    // in the sidebar's Services section, and iPadOS drew that entry as a
+    // second "Services" item beside the hub tab.
+    try XCTSkipUnless(
+      UIDevice.current.userInterfaceIdiom == .pad, "the Services section is iPad-only")
+    let app = launch()
+    useTabBarLayout(in: app)
+    openSonarrFromItsContainer(in: app, dockerTab: app.buttons["Docker"].firstMatch)
+
+    XCTAssertTrue(
+      element("arr.shell", in: app).waitForExistence(timeout: 15),
+      "tapping the service link did not open the service")
+    XCTAssertEqual(
+      tabBarItems(labelled: "Services", in: app), 1,
+      "the tab bar shows the Services hub and the instance's section entry")
+    // The hub shows the instance as its selected row, with its screen beside.
+    let row = element("services.row.\(linkedSonarr)", in: app)
+    XCTAssertTrue(row.waitForExistence(timeout: 10), "the hub's list is not showing")
+    XCTAssertTrue(row.isSelected, "the hub does not show the instance as its selected row")
+    try saveScreenshot(named: "service-link-tab-bar")
+  }
+
+  func testOnIPadTheLinkOpensTheServiceAfterTheSidebarWasShown() throws {
+    try XCTSkipUnless(
+      UIDevice.current.userInterfaceIdiom == .pad, "the Services section is iPad-only")
+    let app = launch()
+    showSidebar(in: app)
+    // Through the sidebar's own Docker entry: with the sidebar showing there
+    // is no Docker item in a tab bar. In portrait the sidebar is an overlay,
+    // and this tap closes it.
+    openSonarrFromItsContainer(
+      in: app, dockerTab: app.cells.matching(NSPredicate(format: "label == %@", "Docker")).firstMatch)
+
+    // Not a count of "Services": with the sidebar up there are two, the hub
+    // tab and the section header.
+    XCTAssertTrue(
+      element("arr.shell", in: app).waitForExistence(timeout: 15),
+      "tapping the service link did not open the service")
+    try saveScreenshot(named: "service-link-sidebar")
+  }
+
+  private func openSonarrFromItsContainer(in app: XCUIApplication, dockerTab: XCUIElement) {
+    XCTAssertTrue(dockerTab.waitForExistence(timeout: 10), "no Docker tab")
+    dockerTab.tap()
+    let container = element("docker.row.uitest-container-sonarr", in: app)
+    XCTAssertTrue(container.waitForExistence(timeout: 15), "the Sonarr container never appeared")
+    container.tap()
+    let link = element("container.service", in: app)
+    XCTAssertTrue(link.waitForExistence(timeout: 10), "no service link on the container screen")
+    link.tap()
+  }
+
+  /// The number of items labelled `label` in the iPad top tab bar.
+  ///
+  /// The bar has no identifier of its own, so its items are the buttons on the
+  /// sidebar toggle's row. Each item is two nested buttons with one frame, so
+  /// this counts distinct frames. The bell and the gear sit on the same row,
+  /// but carry other labels.
+  private func tabBarItems(labelled label: String, in app: XCUIApplication) -> Int {
+    let toggle = app.buttons["ToggleSideBar"].firstMatch
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10), "no top tab bar")
+    let rowMidY = toggle.frame.midY
+    let frames = app.buttons.matching(NSPredicate(format: "label == %@", label))
+      .allElementsBoundByIndex
+      .map(\.frame)
+      .filter { abs($0.midY - rowMidY) < 1 }
+    return Set(frames.map { "\($0)" }).count
   }
 
   // MARK: - Service → container

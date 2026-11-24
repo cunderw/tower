@@ -30,4 +30,21 @@ extension XCTestCase {
     guard hide.exists else { return }
     hide.tap()
   }
+
+  /// iPadOS opens `.sidebarAdaptable` on the *top tab bar*, not the sidebar —
+  /// the sidebar (and with it the Services section) is behind this toggle.
+  /// Confirmed from the real accessibility tree, which is also where these
+  /// identifiers came from.
+  ///
+  /// **Idempotent on purpose.** iPadOS remembers the tab-bar/sidebar choice
+  /// across app launches, so an unconditional tap flips whatever the *previous
+  /// test* left behind: a test that passes in isolation fails in the full
+  /// class, because the sidebar is already showing and the tap hides it again.
+  @MainActor
+  func showSidebar(in app: XCUIApplication) {
+    if app.buttons["Hide Sidebar"].firstMatch.exists { return }
+    let toggle = app.buttons["ToggleSideBar"].firstMatch
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10), "no sidebar toggle in the tab bar")
+    toggle.tap()
+  }
 }
