@@ -217,6 +217,89 @@ final class ServicesHubUITests: XCTestCase {
     XCTAssertTrue(app.navigationBars["Tautulli"].waitForExistence(timeout: 5))
   }
 
+  func testAnOverlayTapOnAnInstanceLeavesOneServicesItemInTheTabBar() throws {
+    // Issue #37: in portrait the sidebar is an overlay. A tap on an instance
+    // closes it, the placement flips back to the top tab bar, and iPadOS drew
+    // the whole Services section as a second "Services" item beside the hub.
+    try XCTSkipUnless(
+      UIDevice.current.userInterfaceIdiom == .pad, "the sidebar section is iPad-only")
+    let app = XCUIApplication()
+    app.launchArguments = ["--uitest-seed-dashboard"]
+    app.launch()
+    useTabBarLayout(in: app)
+    XCTAssertTrue(app.buttons["Dashboard"].firstMatch.waitForExistence(timeout: 10))
+    // The section was drawn as one item on a second page of the bar, behind
+    // a "Next Page" chevron, from launch on.
+    XCTAssertFalse(
+      app.buttons["Next Page"].waitForExistence(timeout: 3),
+      "the tab bar has a second page at launch")
+    // Rebuilding the section moved the bell and the gear onto a second row
+    // under the bar (PR #19), which no count of "Services" notices.
+    XCTAssertEqual(
+      tabBarItems(labelled: "Settings", in: app), 1, "the gear is not on the tab bar's row")
+    showSidebar(in: app)
+    let tautulli = sidebarEntry("Tautulli", in: app)
+    XCTAssertTrue(tautulli.waitForExistence(timeout: 10))
+
+    tautulli.tap()
+
+    XCTAssertTrue(app.navigationBars["Tautulli"].waitForExistence(timeout: 10))
+    // A landscape (persistent) sidebar stays up after the tap, and its row has
+    // no top tab bar to count.
+    try XCTSkipUnless(
+      app.buttons["ToggleSideBar"].waitForExistence(timeout: 5),
+      "the sidebar is persistent here, not an overlay")
+    for line in tabBarRowDescription(in: app) { print("[tab-bar-row] \(line)") }
+    try saveScreenshot(named: "services-overlay-tab-bar")
+    XCTAssertEqual(
+      tabBarItems(labelled: "Services", in: app), 1,
+      "the tab bar shows the Services hub and the Services section")
+    // The instance may show as its own tab (gear on the bar's row) or inside
+    // the hub (gear in the hub's list column, below the bar). A redirect to
+    // the hub drew that column's toolbar under the floating bar (PR #36).
+    XCTAssertEqual(
+      gearsOverlappingTheTabBar(in: app), 0, "a gear is drawn under the floating tab bar")
+    // With the section `.sidebarOnly`, iPadOS instead added the selected
+    // instance to the bar as a temporary item and paged the bar so Dashboard
+    // went behind a "Previous Page" chevron, until relaunch (round 2 of #37).
+    XCTAssertEqual(
+      tabBarItems(labelled: "Tautulli", in: app), 0, "the instance is a temporary tab bar item")
+    XCTAssertFalse(app.buttons["Previous Page"].exists, "the tab bar is paged past Dashboard")
+    XCTAssertFalse(app.buttons["Next Page"].exists, "the tab bar has a second page")
+    XCTAssertEqual(
+      tabBarItems(labelled: "Dashboard", in: app), 1, "Dashboard is not on the tab bar's row")
+
+    // The temporary item stayed on the bar after the next tab change too.
+    let barMidY = app.buttons["ToggleSideBar"].firstMatch.frame.midY
+    let docker = app.buttons.matching(NSPredicate(format: "label == 'Docker'"))
+      .allElementsBoundByIndex.first { abs($0.frame.midY - barMidY) < 1 }
+    try XCTUnwrap(docker, "no Docker item on the tab bar's row").tap()
+    XCTAssertTrue(
+      app.descendants(matching: .any).matching(identifier: "tab.docker.content").firstMatch
+        .waitForExistence(timeout: 10))
+    for line in tabBarRowDescription(in: app) { print("[tab-bar-row docker] \(line)") }
+    try saveScreenshot(named: "services-overlay-after-docker")
+    XCTAssertEqual(tabBarItems(labelled: "Services", in: app), 1, "after Docker: Services count")
+    XCTAssertEqual(tabBarItems(labelled: "Tautulli", in: app), 0, "after Docker: temporary item")
+    XCTAssertFalse(app.buttons["Previous Page"].exists, "after Docker: paged past Dashboard")
+    XCTAssertEqual(tabBarItems(labelled: "Dashboard", in: app), 1, "after Docker: no Dashboard")
+    // Docker is a split view, so its gear sits in the list column below the bar.
+    XCTAssertEqual(gearsOverlappingTheTabBar(in: app), 0, "after Docker: gear under the bar")
+
+    // A `TabView` rebuild can move the Dashboard's bell and gear to a second
+    // row under the bar (PR #19). The Dashboard has one column, so its gear
+    // belongs on the bar's row.
+    let dashboard = app.buttons.matching(NSPredicate(format: "label == 'Dashboard'"))
+      .allElementsBoundByIndex.first { abs($0.frame.midY - barMidY) < 1 }
+    try XCTUnwrap(dashboard, "no Dashboard item on the tab bar's row").tap()
+    XCTAssertTrue(
+      app.descendants(matching: .any).matching(identifier: "tab.dashboard.content").firstMatch
+        .waitForExistence(timeout: 10))
+    XCTAssertEqual(
+      tabBarItems(labelled: "Settings", in: app), 1,
+      "after the rebuild: the Dashboard's gear is not on the tab bar's row")
+  }
+
   func testInstancesStayOutOfATabBarWithNoSidebar() throws {
     // The unfolded iPhone Duo is regular width with no sidebar, and its side
     // tab bar listed every instance after the five real tabs (issue #18). On
@@ -237,6 +320,16 @@ final class ServicesHubUITests: XCTestCase {
       .matching(NSPredicate(format: "label IN %@", names)).firstMatch
     XCTAssertFalse(
       instanceTab.waitForExistence(timeout: 5), "\(instanceTab.label) appears as a tab")
+  }
+
+  /// Gears neither on the top tab bar's row nor wholly below it.
+  private func gearsOverlappingTheTabBar(in app: XCUIApplication) -> Int {
+    let bar = app.buttons["ToggleSideBar"].firstMatch.frame
+    let gears = app.buttons.matching(identifier: "toolbar.settings").allElementsBoundByIndex
+      .filter(\.isHittable)
+    for gear in gears { print("[gear] \(gear.frame)") }
+    XCTAssertFalse(gears.isEmpty, "no gear on screen to check")
+    return gears.filter { abs($0.frame.midY - bar.midY) >= 1 && $0.frame.minY < bar.maxY }.count
   }
 
   /// Sidebar rows are `Cell`s whose *identifier* is the SF Symbol name and

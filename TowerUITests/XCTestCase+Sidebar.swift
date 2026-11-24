@@ -59,4 +59,37 @@ extension XCTestCase {
   private func tabViewSidebarToggle(identifier: String, in app: XCUIApplication) -> XCUIElement {
     app.buttons.matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
   }
+
+  /// The number of items labelled `label` in the iPad top tab bar.
+  ///
+  /// The bar has no identifier of its own, so its items are the buttons on the
+  /// sidebar toggle's row. Each item is two nested buttons with one frame, so
+  /// this counts distinct frames. The bell and the gear sit on the same row,
+  /// but carry other labels.
+  @MainActor
+  func tabBarItems(labelled label: String, in app: XCUIApplication) -> Int {
+    let rowMidY = tabBarRowMidY(in: app)
+    let frames = app.buttons.matching(NSPredicate(format: "label == %@", label))
+      .allElementsBoundByIndex
+      .map(\.frame)
+      .filter { abs($0.midY - rowMidY) < 1 }
+    return Set(frames.map { "\($0)" }).count
+  }
+
+  /// Every button on the top tab bar's row as `label | identifier | frame |
+  /// selected`, for a log line beside a failing count.
+  @MainActor
+  func tabBarRowDescription(in app: XCUIApplication) -> [String] {
+    let rowMidY = tabBarRowMidY(in: app)
+    return app.buttons.allElementsBoundByIndex
+      .filter { abs($0.frame.midY - rowMidY) < 1 }
+      .map { "\($0.label) | \($0.identifier) | \($0.frame) | selected=\($0.isSelected)" }
+  }
+
+  @MainActor
+  private func tabBarRowMidY(in app: XCUIApplication) -> CGFloat {
+    let toggle = app.buttons["ToggleSideBar"].firstMatch
+    XCTAssertTrue(toggle.waitForExistence(timeout: 10), "no top tab bar")
+    return toggle.frame.midY
+  }
 }

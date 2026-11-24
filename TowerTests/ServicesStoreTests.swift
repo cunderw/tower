@@ -180,4 +180,55 @@ struct ServicesStoreTests {
 
     #expect(saved?.isEnabled == false)
   }
+
+  // MARK: - Cancellation
+
+  @Test func aCancelledRefreshKeepsThePreviousStatuses() async {
+    // Issue #37: an overlay tap selects the hub, whose `.task` starts a
+    // refresh, and the `TabView` rebuild one hop later cancels it. The live
+    // checker answers a cancelled probe with `.unreachable(.cancelled)`, which
+    // drew a red "Cancelled." on every row.
+    let checker = CancellableStatusChecker()
+    let store = ServicesStore(
+      directory: ServiceDirectory.inMemory([instance(.radarr, "Radarr")]), checker: checker)
+    store.reloadInstances()
+    await store.refreshStatuses()
+    let id = store.instances[0].id
+    #expect(store.statuses[id] == .reachable(version: "1"))
+
+    let refresh = Task { await store.refreshStatuses() }
+    await checker.waitUntilBlocked()
+    refresh.cancel()
+    await refresh.value
+
+    #expect(store.statuses[id] == .reachable(version: "1"), "a cancelled check overwrote a status")
+  }
+}
+
+/// Answers the first check at once. Every later check waits until its task is
+/// cancelled, then answers the way `LiveServiceStatusChecker` does.
+private actor CancellableStatusChecker: ServiceStatusChecking {
+  private var calls = 0
+  private let blocked: AsyncStream<Void>
+  private let signal: AsyncStream<Void>.Continuation
+
+  init() {
+    (blocked, signal) = AsyncStream.makeStream(of: Void.self)
+  }
+
+  func status(for instance: ServiceInstance) async -> ServiceStatus {
+    calls += 1
+    guard calls > 1 else { return .reachable(version: "1") }
+    signal.yield()
+    do {
+      try await Task.sleep(for: .seconds(60))
+      return .reachable(version: "2")
+    } catch {
+      return .unreachable(AppError.wrapping(error))
+    }
+  }
+
+  func waitUntilBlocked() async {
+    for await _ in blocked { return }
+  }
 }

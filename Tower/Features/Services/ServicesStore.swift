@@ -199,6 +199,9 @@ final class ServicesStore {
         group.addTask { (instance.id, await checker.status(for: instance)) }
       }
       for await (id, status) in group {
+        // A cancelled check answers `.unreachable(.cancelled)`, which says
+        // nothing about the service. Keep the status it had (issue #37).
+        guard !Task.isCancelled else { continue }
         statuses[id] = status
       }
     }
