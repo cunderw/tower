@@ -26,6 +26,10 @@ struct RootView: View {
   /// Where the `TabView` draws its tabs now, reported up the same way. `nil`
   /// until the first report. `open(service:)` reads it.
   @State private var tabBarPlacement: TabBarPlacement?
+  /// The `TabView`'s identity. `leaveSidebar(from:)` increments it to rebuild
+  /// the `TabView`, which is the only way found to remove the temporary tab
+  /// bar item that iPadOS adds for an instance selected from the overlay.
+  @State private var tabViewGeneration = 0
 
   @State private var selection: TowerDestination = .tab(.dashboard)
   /// The Docker and Services lists' selections, **owned here** because the
@@ -111,6 +115,10 @@ struct RootView: View {
   /// The sidebar's per-instance Services section. In a tab bar these would be
   /// nine more items competing with the five real tabs, which is what the hub
   /// tab exists to prevent, so they appear only where a sidebar can.
+  ///
+  /// Under the iPad top tab bar the section still exists, because the sidebar
+  /// overlay shows it. `.tabPlacement(.sidebarOnly)` keeps its entries out of
+  /// the bar itself (issue #37).
   private var showsServiceTabs: Bool {
     horizontalSizeClass != .compact && isTabSidebarAvailable
   }
@@ -125,11 +133,32 @@ struct RootView: View {
   ///
   /// Not `.service` under the iPad top tab bar either, although the section
   /// exists there. iPadOS then draws the selected entry as a second "Services"
-  /// item beside the hub tab (issue #20).
+  /// item beside the hub tab (issue #20). A tap on an entry in the sidebar
+  /// overlay does select `.service` there, without this function, and
+  /// `leaveSidebar(from:)` moves that selection to the hub (issue #37).
   private func open(service instance: ServiceInstance) {
     servicesSelection = instance.id
     selection =
       showsServiceTabs && tabBarPlacement == .sidebar ? .service(instance.id) : .tab(.services)
+  }
+
+  /// Moves an instance selected from the sidebar overlay into the hub.
+  ///
+  /// Under the iPad top tab bar, a tap on an instance in the overlay closes the
+  /// overlay and leaves `.service` selected. iPadOS then adds the instance to
+  /// the bar as a temporary item, and the bar can page (issue #37). The hub
+  /// shows the same instance with the selection on a real tab.
+  ///
+  /// The selection changes at once, and the `TabView` rebuilds one main-actor
+  /// hop later. The temporary item stays until the rebuild. A rebuild in the
+  /// same pass as the placement report crashes in UIKit's tab outline view,
+  /// and a deferred selection change keeps the app from going idle. The
+  /// rebuild also drops the screens pushed on the other tabs.
+  private func leaveSidebar(from id: UUID) {
+    guard selection == .service(id) else { return }
+    servicesSelection = id
+    selection = .tab(.services)
+    Task { @MainActor in tabViewGeneration += 1 }
   }
 
   private func open(container: Container) {
@@ -244,16 +273,22 @@ struct RootView: View {
                   )
               }
               .accessibilityIdentifier("tab.service.\(instance.id.uuidString).content")
+              .modifier(LeaveSidebarRedirect(action: { leaveSidebar(from: instance.id) }))
               .modifier(
                 TabSidebarAvailabilityReader(
                   isAvailable: $isTabSidebarAvailable, placement: $tabBarPlacement))
             }
           }
         }
+        // In the sidebar and its overlay only, never as items in the top tab
+        // bar (issue #37).
+        .tabPlacement(.sidebarOnly)
       }
     }
     .tabViewStyle(.sidebarAdaptable)
     .accessibilityIdentifier("root.tabs")
+    // See `leaveSidebar(from:)`.
+    .id(tabViewGeneration)
     .sheet(isPresented: $isShowingSettings) {
       SettingsSheet(
         server: server,
@@ -428,4 +463,22 @@ func performSignOut(environment: AppEnvironment, dismiss: () -> Void, onSignOut:
   environment.signOut()
   dismiss()
   onSignOut()
+}
+
+/// Calls `action` when its tab's content appears, or stays, under the top tab
+/// bar. It goes on each instance tab's content, because only there does the
+/// environment report the placement.
+///
+/// The read must stay inside the tab. A read of `tabBarPlacement` at the
+/// `RootView` level (an `onChange` there, or a placement binding) moves the
+/// bell and the gear to a second row at launch.
+private struct LeaveSidebarRedirect: ViewModifier {
+  let action: () -> Void
+  @Environment(\.tabBarPlacement) private var tabBarPlacement
+
+  func body(content: Content) -> some View {
+    content.onChange(of: tabBarPlacement, initial: true) {
+      if tabBarPlacement == .topBar { action() }
+    }
+  }
 }
