@@ -116,17 +116,17 @@ struct ListDetailScaffold<SelectionID: Hashable, Sidebar: View, Detail: View>: V
   }
 }
 
-/// An empty child view controller beside the split view. It keeps the
+/// An empty child view controller behind the split view. It keeps the
 /// columns' bars from dropping 44 pt after a push (issue #40).
 ///
-/// **Its presence is the fix; it draws and does nothing.** Do not remove it as
-/// dead code. `SplitViewBarPositionUITests` fails without it.
+/// **Its presence is the fix; it draws nothing and does nothing.** Do not remove
+/// it as dead code. `SplitViewBarPositionUITests` fails without it.
 ///
 /// What was measured, on the iPadOS 27.0 simulator under the top tab bar: the
 /// tab puts the split view below the tab bar. After any push in the detail
 /// column, UIKit also gives each column a 54 pt top inset for the tab bar, so
 /// both columns' bars move from y=106 to y=150. They stay there after Back and
-/// after another row is selected. With a child view controller beside the
+/// after another row is selected. With a child view controller behind the
 /// split view, the columns keep a top inset of 0, and the bars stay at 106
 /// after a push, after Back, and after a tab switch.
 ///
