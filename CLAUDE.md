@@ -194,29 +194,57 @@ fails in the full suite.
 
 ## Screenshots
 
-`scripts/screenshots.sh [out-dir]` captures demo mode through
-`ScreenshotTourUITests` into `docs/app-store-assets/iphone-69` (1320×2868, on
-`Tower iPhone 17 Pro Max`) and `docs/app-store-assets/ipad-13` (2064×2752, on `Tower iPad`).
-The gate device is 6.3", not 6.9", so it cannot produce the store set.
+`scripts/screenshots.sh [out-dir]` captures demo mode through `ScreenshotTourUITests` on
+`Tower iPhone 17 Pro Max` (1320×2868) and `Tower iPad` (2064×2752), then frames each
+capture for the store. The gate device is 6.3", not 6.9", so it cannot produce the store
+set. Three folders under `docs/app-store-assets/` hold the result, and all three are
+committed:
 
-- `--kind iphone-69` or `--kind ipad-13` captures one size. `--simulator-id <udid>` (with
+| Folder | Holds |
+| --- | --- |
+| `raw/<kind>/` | The tour's captures, named for what they show (`dashboard.png`). `--frame` reads them. |
+| `<kind>/` | The store images, `NN-<name>.png`: a capture in a device frame under a caption. The upload reads these. |
+| `background/<kind>.png` | The generated image behind each set. Without it, the framer draws an orange gradient. |
+
+`<kind>` is `iphone-69` or `ipad-13`. The upload reads only the top level of each set
+folder, so `raw/` and `background/` never reach App Store Connect.
+
+- **`scripts/frame-screenshots.swift` owns `LISTING`**: the store order and the caption for
+  each capture. Reorder or recaption by editing that table. `swift
+  scripts/frame-screenshots.swift --list` prints the order, and the shell script reads it
+  from there.
+- The framer numbers the store images `%02d`. The upload order comes from a lexicographic
+  sort of the filenames, so an unpadded `10-` would sort before `2-`.
+- The tour photographs screens that must never ship, such as UI-test fixtures. Only what
+  `LISTING` names reaches `raw/` and the store set.
+- The App Store accepts at most ten screenshots per size, and the script refuses a
+  `LISTING` longer than that. It also checks each store image's count, size, and
+  `hasAlpha: no`.
+- The framer fails the run when white caption text reads below 4.5:1 on the lightest
+  pixel under it. Fix a failing background, never the check.
+- The app UI inside a frame is the unedited capture, scaled. App Review guideline 2.3.3
+  requires that. The framer draws only the background, the frame, the phone's Dynamic
+  Island and the caption.
+- **`--frame`** frames the committed raw captures again with no tour, no simulator and no
+  `xcodebuild`. Use it after a change to `LISTING`, a caption or a background.
+- **The tour overrides the status bar**: 9:41 on 2007-01-09, full bars, 100% battery with
+  `--batteryState discharging` (a level alone draws a charging battery). `simctl` takes the
+  date only as ISO 8601 with milliseconds and an offset, such as
+  `2007-01-09T09:41:00.000-06:00`. An EXIT trap clears the override, also when the run fails.
+- The script builds everything in a staging folder. It copies into `out-dir` only after
+  every check for every kind passes.
+- `--kind iphone-69` or `--kind ipad-13` does one size. `--simulator-id <udid>` (with
   `--kind`) captures on that simulator instead of the named one, for a caller that
-  manages its own simulators. Without it, the script refuses to start while another
+  manages its own simulators. Without it, a tour refuses to start while another
   `xcodebuild` runs. `--help` prints the usage.
 - The script changes to its own repo root and passes the project explicitly, so it
   builds its own checkout's code whatever directory you run it from.
-- The assets are committed, because they are what gets uploaded, and the diff is the
-  listing's diff.
 - The tour reads `TOWER_SCREENSHOT_DIR` in the test runner process, so it has to arrive as
   test-runner environment (`testRunnerEnv`, or a `TEST_RUNNER_`-prefixed host variable).
   An unprefixed host variable is ignored and the tour writes to its default path.
-- The `LISTING` array in the script picks which captures ship and numbers them `%02d`.
-  The upload order comes from a lexicographic sort of the filenames, so an unpadded `10-`
-  sorts before `2-`. Reorder the listing by editing that array.
-- The tour photographs screens that must never ship, such as UI-test fixtures. Only what
-  `LISTING` names survives.
-- The App Store accepts at most ten screenshots per size, and the script refuses a
-  `LISTING` longer than that.
+- The tour stays in light appearance.
+- The backgrounds come from a headless ComfyUI run. The header comment of
+  `scripts/frame-screenshots.swift` records the model, sampler, steps, prompt and seeds.
 
 ## Style
 

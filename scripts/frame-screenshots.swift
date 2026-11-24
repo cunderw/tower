@@ -16,9 +16,11 @@
 //   model    z_image_turbo_bf16.safetensors, text encoder qwen_3_4b.safetensors,
 //            VAE ae.safetensors
 //   sampler  res_multistep, scheduler simple, 8 steps, cfg 1, denoise 1
-//   prompt   BACKGROUND_PROMPT
-//   iphone-69  832x1808, seed BACKGROUND_SEED_PHONE
-//   ipad-13    1152x1536, seed BACKGROUND_SEED_PAD
+//   shift    3 (ModelSamplingAuraFlow), negative is the zeroed prompt
+//   prompt   "dark charcoal studio backdrop, one soft out-of-focus warm orange light glow
+//            from the lower left, fine grain, top third nearly black, no text, no objects"
+//   iphone-69  832x1808, seed 101
+//   ipad-13    1152x1536, seed 101
 //
 //   swift scripts/frame-screenshots.swift iphone-69 <raw dir> <out dir>
 //   swift scripts/frame-screenshots.swift ipad-13   <raw dir> <out dir>
