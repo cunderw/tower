@@ -101,6 +101,43 @@ final class DashboardUITests: XCTestCase {
     return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
   }
 
+  /// Waits for `element`'s accessibility value to contain any one of `texts`.
+  /// For a value that alternates: every reading satisfies the wait, so a poll
+  /// that happens to land on the same phase each time still sees it.
+  private func waitForValue(
+    of element: XCUIElement, containingAnyOf texts: [String], timeout: TimeInterval = 5
+  ) -> Bool {
+    let predicate = NSCompoundPredicate(
+      orPredicateWithSubpredicates: texts.map { NSPredicate(format: "value CONTAINS %@", $0) })
+    let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+    return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+  }
+
+  /// Reads `element`'s accessibility value every 0.1 s until every one of
+  /// `texts` has appeared in some reading, or `timeout` passes, and returns
+  /// the readings in order with their time since the first one.
+  /// Samples by hand, not through `XCTNSPredicateExpectation`: that one
+  /// evaluates too seldom to see both phases of a value that alternates once a
+  /// second (issue #57). Reads once more after the deadline.
+  private func sampleValues(
+    of element: XCUIElement, untilSeeing texts: [String], timeout: TimeInterval = 5
+  ) -> (sawAll: Bool, samples: [String]) {
+    let start = Date()
+    var samples: [String] = []
+    var seen = Set<String>()
+    func read() -> Bool {
+      let value = (element.value as? String) ?? ""
+      samples.append(String(format: "%.1fs %@", Date().timeIntervalSince(start), value))
+      seen.formUnion(texts.filter { value.contains($0) })
+      return seen.count == texts.count
+    }
+    while Date().timeIntervalSince(start) < timeout {
+      if read() { return (true, samples) }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+    }
+    return (read(), samples)
+  }
+
   /// The label and value together. `LabeledContent` may publish its value
   /// in either, and this test cares only that "52°C" reaches the tree.
   private func spokenText(of element: XCUIElement) -> String {
@@ -122,16 +159,21 @@ final class DashboardUITests: XCTestCase {
   }
 
   /// `FakeMetricsStream`'s `.live` mode: CPU alternates 47% and 53% once a
-  /// second over the fixture's polled 12%. Seeing both values proves the gauge
-  /// follows the stream while the dashboard is on screen, not that it showed
-  /// one live value once.
+  /// second over the fixture's polled 12%. Either value proves the gauge went
+  /// live. Seeing both proves the gauge follows the stream while the dashboard
+  /// is on screen, not that it showed one live value once.
   func testLiveMetricsReplaceThePolledGaugesAndShowTheCpuTemperature() throws {
     let app = launch(state: "live-metrics")
 
     let cpu = element(identifier: "dashboard.metricGauge.cpu", in: app)
     XCTAssertTrue(cpu.waitForExistence(timeout: 5), "dashboard.metricGauge.cpu never appeared")
-    XCTAssertTrue(waitForValue(of: cpu, containing: "47%"), "the CPU gauge never showed the live 47%, got \"\(cpu.value ?? "")\"")
-    XCTAssertTrue(waitForValue(of: cpu, containing: "53%"), "the CPU gauge never moved on to the live 53%, got \"\(cpu.value ?? "")\"")
+    XCTAssertTrue(
+      waitForValue(of: cpu, containingAnyOf: ["47%", "53%"]),
+      "the CPU gauge never showed a live 47% or 53%, got \"\(cpu.value ?? "")\"")
+    let cpuReadings = sampleValues(of: cpu, untilSeeing: ["47%", "53%"])
+    XCTAssertTrue(
+      cpuReadings.sawAll,
+      "the CPU gauge never showed both live 47% and 53%, \(cpuReadings.samples.count) readings: \(cpuReadings.samples)")
 
     let memory = element(identifier: "dashboard.metricGauge.memory", in: app)
     XCTAssertTrue(waitForValue(of: memory, containing: "30%"), "the memory gauge never showed the live 30%, got \"\(memory.value ?? "")\"")
@@ -153,8 +195,13 @@ final class DashboardUITests: XCTestCase {
 
     let cpu = element(identifier: "dashboard.metricGauge.cpu", in: app)
     XCTAssertTrue(cpu.waitForExistence(timeout: 5), "dashboard.metricGauge.cpu never appeared")
-    XCTAssertTrue(waitForValue(of: cpu, containing: "47%"), "the CPU gauge never showed the live 47%, got \"\(cpu.value ?? "")\"")
-    XCTAssertTrue(waitForValue(of: cpu, containing: "53%"), "the CPU gauge never moved on to the live 53%, got \"\(cpu.value ?? "")\"")
+    XCTAssertTrue(
+      waitForValue(of: cpu, containingAnyOf: ["47%", "53%"]),
+      "the CPU gauge never showed a live 47% or 53%, got \"\(cpu.value ?? "")\"")
+    let cpuReadings = sampleValues(of: cpu, untilSeeing: ["47%", "53%"])
+    XCTAssertTrue(
+      cpuReadings.sawAll,
+      "the CPU gauge never showed both live 47% and 53%, \(cpuReadings.samples.count) readings: \(cpuReadings.samples)")
 
     XCTAssertFalse(
       element(identifier: "dashboard.cpuTemperature", in: app).exists,
