@@ -141,41 +141,16 @@ struct RGB {
     return (max(a, b) + 0.05) / (min(a, b) + 0.05)
   }
 
-  func blended(toward other: RGB, by amount: Double) -> RGB {
-    RGB(
-      r: r + (other.r - r) * amount, g: g + (other.g - g) * amount,
-      b: b + (other.b - b) * amount)
-  }
-
-  /// `self` toward black by the least amount that gives `ink` `minimum` contrast on it.
-  func darkened(toReach minimum: Double, for ink: RGB) -> RGB {
-    guard contrast(with: ink) < minimum else { return self }
-    let black = RGB(r: 0, g: 0, b: 0)
-    var failing = 0.0
-    var passing = 1.0
-    for _ in 0..<24 {
-      let midpoint = (passing + failing) / 2
-      if blended(toward: black, by: midpoint).contrast(with: ink) >= minimum {
-        passing = midpoint
-      } else {
-        failing = midpoint
-      }
-    }
-    return blended(toward: black, by: passing)
-  }
-
   func cg(alpha: Double = 1) -> CGColor {
     CGColor(srgbRed: r, green: g, blue: b, alpha: alpha)
   }
 }
 
 let white = RGB(r: 1, g: 1, b: 1)
-/// The accent, darkened until white reads at 5.5:1 on it, so a caption still clears 4.5:1
-/// where the glow lightens it. `drawText` measures that and fails below 4.5:1. White on
-/// system orange itself reads at about 2.2:1.
-let backgroundTop = accent.darkened(toReach: 5.5, for: white)
-/// Darker toward the bottom, so the device stands on something.
-let backgroundBottom = backgroundTop.blended(toward: RGB(r: 0, g: 0, b: 0), by: 0.4)
+/// The fallback gradient's charcoal, the same look as the background images: near black at
+/// the top, where the caption sits, and a little lighter toward the bottom.
+let backgroundTop = RGB(hex: 0x141416)
+let backgroundBottom = RGB(hex: 0x222224)
 
 // MARK: - Drawing
 
@@ -240,7 +215,8 @@ func describeGradient() {
   print(
     String(
       format:
-        "background #%02X%02X%02X to #%02X%02X%02X, white reads at %.2f:1 on the top colour",
+        "background #%02X%02X%02X to #%02X%02X%02X with an orange glow at the lower left, "
+        + "white reads at %.2f:1 on the top colour",
       Int(backgroundTop.r * 255), Int(backgroundTop.g * 255), Int(backgroundTop.b * 255),
       Int(backgroundBottom.r * 255), Int(backgroundBottom.g * 255),
       Int(backgroundBottom.b * 255), backgroundTop.contrast(with: white)))
@@ -253,16 +229,16 @@ func drawBackground(_ context: CGContext) {
     locations: [0, 1])!
   context.drawLinearGradient(
     gradient, start: CGPoint(x: 0, y: size.height), end: CGPoint(x: 0, y: 0), options: [])
-  // A soft light behind the middle, in the accent itself, so the flat gradient has some
-  // depth. The accent is lighter than the top colour, so the glow lowers the caption's
-  // contrast a little. `drawText` measures what is left.
+  // One soft orange light from the lower left, as in the background images. It fades out
+  // well below the caption, and `drawText` measures what is under the text anyway.
   let glow = CGGradient(
-    colorsSpace: sRGB, colors: [accent.cg(alpha: 0.35), accent.cg(alpha: 0)] as CFArray,
-    locations: [0, 1])!
-  let centre = CGPoint(x: size.width / 2, y: size.height * 0.55)
+    colorsSpace: sRGB,
+    colors: [accent.cg(alpha: 0.6), accent.cg(alpha: 0.2), accent.cg(alpha: 0)] as CFArray,
+    locations: [0, 0.45, 1])!
+  let centre = CGPoint(x: 0, y: size.height * 0.22)
   context.drawRadialGradient(
     glow, startCenter: centre, startRadius: 0, endCenter: centre,
-    endRadius: max(size.width, size.height) * 0.6, options: [])
+    endRadius: max(size.width, size.height) * 0.55, options: [])
 }
 
 func loadImage(_ url: URL) -> CGImage {

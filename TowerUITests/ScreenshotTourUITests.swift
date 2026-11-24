@@ -282,8 +282,9 @@ final class ScreenshotTourUITests: XCTestCase {
   /// and the dataset the store screenshots come from.
   ///
   /// **Capture names are semantic, and the tour does not decide the store
-  /// order.** The `LISTING` array in `scripts/screenshots.sh` picks which
-  /// captures ship and numbers them, so capture order here is free to follow
+  /// order.** The `LISTING` table in `scripts/frame-screenshots.swift` picks
+  /// which captures ship, numbers them and captions them, so capture order here
+  /// is free to follow
   /// navigation: connect comes first because tapping through it is how the
   /// tour reaches demo mode. A capture `LISTING` does not name is verification
   /// evidence and never reaches a listing.
