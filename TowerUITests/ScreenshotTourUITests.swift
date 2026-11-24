@@ -804,8 +804,8 @@ final class ScreenshotTourUITests: XCTestCase {
   }
 
   /// The tallest a title's static text is in an inline bar. Measured on the
-  /// iPadOS and iOS 27.0 simulators: a large title's text is about 41 pt tall,
-  /// an inline one (the Docker log viewer's) about 21 pt.
+  /// iOS 27.2 simulators (Xcode 27.2), iPad and iPhone: a large title's text is
+  /// about 41 pt tall, an inline one (the Docker log viewer's) about 21 pt.
   private static let inlineTitleMaxHeight: CGFloat = 30
 
   /// Waits until the navigation bar for `title` draws it as a large title, and

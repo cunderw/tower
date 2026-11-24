@@ -149,9 +149,12 @@ runtime the device type supports.
 | `Tower iPhone 17 Pro Max` | `iPhone-17-Pro-Max` | 6.9" App Store screenshots only |
 | `Tower iPhone Duo` | `iPhone-Duo` | Foldable iPhone; manual checks of the folded and unfolded layouts |
 
-On Xcode 27.1 the iOS 27.1 runtime supports only the iPhone Duo, so the Duo gets 27.1 and the
-other three devices get iOS 27.0, the newest runtime that supports them, and `simctl create`
-with no runtime argument picks that correctly.
+Measured on 2026-11-24 with Xcode 27.2, which installs two iOS 27.2 runtimes. Build
+24B8117 (`SimRuntime.iOS-27-2`) supports the iPhone 17, the iPhone 17 Pro Max and the 13"
+iPad Pro, and every Tower device on this Mac runs on it. Build 24B91016s
+(`SimRuntime.iOS-27-2-iPhone19-4`) supports only the iPhone Duo. `simctl list devices` shows
+the iOS 27.0 and 27.1 runtimes as unavailable. No `Tower iPhone Duo` exists, so create it
+with the command above before a manual check on the foldable.
 
 Keep a name and its device type together. An iPad name on an iPhone type lets the iPad
 checks pass against a phone.
