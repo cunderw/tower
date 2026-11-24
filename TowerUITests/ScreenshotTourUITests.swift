@@ -575,8 +575,10 @@ final class ScreenshotTourUITests: XCTestCase {
     // Every store screen before the interactive search. On iPad, the movie
     // detail push and the search sheet leave both split-view bars lower for the
     // rest of the run, and a store set whose last screens sit lower than its
-    // first ones looks broken. The captures after this point are verification
-    // only, so the shift does not reach the listing.
+    // first ones looks broken. This order keeps 08 requests level: a run with
+    // the search first had it lower. Streams, music and subtitles sit lower in
+    // either order, for a cause #40 tracks. The captures after this point are
+    // verification only, so the shift does not reach the listing.
     try captureRequests(in: app)
     try captureMusic(in: app)
     try captureSubtitles(in: app)

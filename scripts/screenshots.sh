@@ -25,7 +25,7 @@
 #                    only the top level of each set folder, so raw/ and background/ never
 #                    upload.
 #   background/      one generated image per kind, drawn behind the device. Without it the
-#                    framer draws an orange gradient.
+#                    framer draws a charcoal gradient with an orange glow.
 #
 # scripts/frame-screenshots.swift owns LISTING, the store order and the caption for each
 # capture. `swift scripts/frame-screenshots.swift --list` prints the order. A capture that

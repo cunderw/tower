@@ -204,7 +204,7 @@ committed:
 | --- | --- |
 | `raw/<kind>/` | The tour's captures, named for what they show (`dashboard.png`). `--frame` reads them. |
 | `<kind>/` | The store images, `NN-<name>.png`: a capture in a device frame under a caption. The upload reads these. |
-| `background/<kind>.png` | The generated image behind each set. Without it, the framer draws an orange gradient. |
+| `background/<kind>.png` | The generated image behind each set. Without it, the framer draws a charcoal gradient with an orange glow. |
 
 `<kind>` is `iphone-69` or `ipad-13`. The upload reads only the top level of each set
 folder, so `raw/` and `background/` never reach App Store Connect.

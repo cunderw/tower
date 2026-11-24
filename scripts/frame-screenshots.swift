@@ -5,8 +5,8 @@
 //
 // A set can have a background image instead of the fallback gradient:
 // `docs/app-store-assets/background/<kind>.png` (iphone-69 or ipad-13), drawn to fill the
-// canvas, centred, and cropped to it. Without that file the set gets a gradient drawn from
-// system orange, so a fresh clone frames with no image. The caption contrast check reads
+// canvas, centred, and cropped to it. Without that file the set gets a charcoal gradient
+// with an orange glow, so a fresh clone frames with no image. The caption contrast check reads
 // whatever was drawn under the text, so an image that is too light behind the caption fails
 // the run.
 //
