@@ -100,6 +100,14 @@ struct ListDetailScaffold<SelectionID: Hashable, Sidebar: View, Detail: View>: V
               description: Text(placeholder.description)
             )
             .accessibilityIdentifier(placeholder.identifier)
+            // An empty large title gives this bar the detail's 106 pt
+            // height, so the first selection does not change the bar's
+            // height. Without it the bar is 54 pt, and under load the
+            // detail's List sometimes takes its first offset against that
+            // bar: it starts scrolled 52 pt with the title collapsed
+            // (issue #50).
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.large)
           }
         }
         // Resets the detail column's stack when the selection changes:
