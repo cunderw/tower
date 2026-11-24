@@ -6,8 +6,8 @@ import Testing
 ///
 /// The file is at the repository root, outside every synced folder. One file entry in
 /// `project.xcproj`, a member of the `Tower` target's resources, puts it in the app bundle,
-/// and a project edit that drops it leaves the build green. The `TowerKit` tests cannot see a built
-/// product. `TowerTests` is app-hosted, so `Bundle.main` here is the Tower app.
+/// and a project edit that drops it leaves the build green. The `TowerKit` tests cannot see a
+/// built product. `TowerTests` is app-hosted, so `Bundle.main` here is the Tower app.
 ///
 /// The app does not show the file. This checks only that it ships.
 @Suite("Third-party notices")
