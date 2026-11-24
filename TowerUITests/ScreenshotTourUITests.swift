@@ -623,7 +623,7 @@ final class ScreenshotTourUITests: XCTestCase {
   /// other people use, and the indexer list is the one that shows Tower
   /// noticing a problem — between them they cover both services.
   private func captureRequestsAndIndexers(in app: XCUIApplication) throws {
-    app.buttons["Services"].firstMatch.tap()
+    backToHub(in: app)
 
     let overseerr = app.descendants(matching: .any)
       .matching(identifier: "services.row.D0000000-0000-0000-0000-000000000006").firstMatch
@@ -635,7 +635,7 @@ final class ScreenshotTourUITests: XCTestCase {
     XCTAssertTrue(request.waitForExistence(timeout: 25), "the demo requests list never loaded")
     try capture(named: "requests")
 
-    app.buttons["Services"].firstMatch.tap()
+    backToHub(in: app)
     let prowlarr = app.descendants(matching: .any)
       .matching(identifier: "services.row.D0000000-0000-0000-0000-000000000007").firstMatch
     XCTAssertTrue(scrollTo(prowlarr, in: app), "the demo hub never offered a Prowlarr")
@@ -687,10 +687,13 @@ final class ScreenshotTourUITests: XCTestCase {
   private func openHubRow(
     _ id: String, in app: XCUIApplication, named name: String
   ) -> XCUIElement {
-    app.buttons["Services"].firstMatch.tap()
+    backToHub(in: app)
     // Back to the top first, so `scrollTo`'s forward-only search starts from a
-    // known position rather than wherever the last service left it.
-    for _ in 0..<4 { app.swipeDown() }
+    // known position rather than wherever the last service left it. iPhone only:
+    // on iPad `app.swipeDown()` lands in the detail column, not the hub.
+    if UIDevice.current.userInterfaceIdiom != .pad {
+      for _ in 0..<4 { app.swipeDown() }
+    }
 
     let row = app.descendants(matching: .any)
       .matching(identifier: "services.row.\(id)").firstMatch
@@ -731,7 +734,7 @@ final class ScreenshotTourUITests: XCTestCase {
 
   /// A download client. Not in the store listing.
   private func captureDownloadClient(in app: XCUIApplication) throws {
-    app.buttons["Services"].firstMatch.tap()
+    backToHub(in: app)
 
     let client = app.descendants(matching: .any)
       .matching(identifier: "services.row.D0000000-0000-0000-0000-000000000009").firstMatch
@@ -749,6 +752,17 @@ final class ScreenshotTourUITests: XCTestCase {
         .firstMatch.exists,
       "the status header never rendered")
     try capture(named: "downloads")
+  }
+
+  /// Back to the service hub from a service screen.
+  ///
+  /// On iPhone that is a tap on the selected Services tab, which pops the stack.
+  /// On iPad the hub is already the sidebar beside the service, with every row
+  /// on screen. A tap on the selected tab there left both columns' bars lower in
+  /// every later capture, so the tour leaves the tab alone.
+  private func backToHub(in app: XCUIApplication) {
+    guard UIDevice.current.userInterfaceIdiom != .pad else { return }
+    app.buttons["Services"].firstMatch.tap()
   }
 
   /// Fills the iPad's detail column before a store screenshot is taken, and

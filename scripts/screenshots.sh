@@ -198,11 +198,17 @@ tour_time() {
   echo "2007-01-09T09:41:00.000${offset:0:3}:${offset:3:2}"
 }
 
-# Boots the device if it is not booted (a warm boot, never an erase) and overrides its
-# status bar. `bootstatus -b` returns when the boot has finished, and the override fails on a
-# device that is shut down.
+# Shuts the device down and boots it again (a warm boot, never an erase), then overrides
+# its status bar. SpringBoard hides the home indicator only while the simulator reports
+# that attention is lost, and a device that has stayed booted can stop sending those
+# reports, so every capture then draws the indicator. The iPad drew it in all ten
+# captures on 2026-11-23, and a boot brings the reports back. The shutdown stops anything
+# else on that simulator, so run the tour through the device lock. `bootstatus -b`
+# returns when the boot has finished, and the override fails on a device that is shut
+# down.
 override_status_bar() {
   local udid="$1" bar_time
+  xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
   xcrun simctl bootstatus "$udid" -b >/dev/null || die "cannot boot simulator $udid"
   # Its own assignment, because a failure inside an argument's `$(…)` does not stop the run.
   bar_time="$(tour_time)" || exit 1
