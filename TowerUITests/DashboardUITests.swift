@@ -114,29 +114,21 @@ final class DashboardUITests: XCTestCase {
   }
 
   /// Reads `element`'s accessibility value every 0.1 s until every one of
-  /// `texts` has appeared in some reading (in the order given, if `inOrder`),
-  /// or `timeout` passes, and returns the readings in order with their time
-  /// since the first one. An element that does not exist yet reads as
-  /// "<absent>", so sampling can start before the element appears.
+  /// `texts` has appeared in some reading, or `timeout` passes, and returns
+  /// the readings in order with their time since the first one.
   /// Samples by hand, not through `XCTNSPredicateExpectation`: that one
   /// evaluates too seldom to see both phases of a value that alternates once a
   /// second (issue #57). Reads once more after the deadline.
   private func sampleValues(
-    of element: XCUIElement, untilSeeing texts: [String], inOrder: Bool = false,
-    timeout: TimeInterval = 5
+    of element: XCUIElement, untilSeeing texts: [String], timeout: TimeInterval = 5
   ) -> (sawAll: Bool, samples: [String]) {
     let start = Date()
     var samples: [String] = []
-    var seen: [String] = []
+    var seen = Set<String>()
     func read() -> Bool {
-      // `value` on an element that does not exist fails the test, so look first.
-      let value = element.exists ? (element.value as? String) ?? "" : "<absent>"
+      let value = (element.value as? String) ?? ""
       samples.append(String(format: "%.1fs %@", Date().timeIntervalSince(start), value))
-      if inOrder {
-        if seen.count < texts.count, value.contains(texts[seen.count]) { seen.append(texts[seen.count]) }
-      } else {
-        seen += texts.filter { value.contains($0) && !seen.contains($0) }
-      }
+      seen.formUnion(texts.filter { value.contains($0) })
       return seen.count == texts.count
     }
     while Date().timeIntervalSince(start) < timeout {
@@ -222,25 +214,26 @@ final class DashboardUITests: XCTestCase {
   /// The acceptance criterion: on a websocket failure the dashboard falls
   /// back to its polled values and shows no alarming message. The fake's
   /// stream fails and stays failed; the live repository's own retry is
-  /// covered in the kit tests. The live value
-  /// is seen first, so a stream that never ran cannot pass this.
+  /// covered in the kit tests. The CPU temperature row is seen first, so a
+  /// stream that never ran cannot pass this.
   func testAFailingStreamFallsBackToThePolledValuesWithoutAnError() {
     let app = launch(state: "live-metrics-fails")
 
-    // The stream is live for only `FakeMetricsStream.failureDelay` (5 s), so
-    // sample from launch: a wait for the gauge to appear first spends that
-    // window (issue #57). The fixture's polled CPU is 12%, so 47% and then
-    // 12% is the stream going live and then failing.
-    let cpu = element(identifier: "dashboard.metricGauge.cpu", in: app)
-    let cpuReadings = sampleValues(of: cpu, untilSeeing: ["47%", "12%"], inOrder: true, timeout: 15)
-    XCTAssertTrue(
-      cpuReadings.sawAll,
-      "the CPU gauge never showed the live 47% and then the polled 12%, \(cpuReadings.samples.count) readings: \(cpuReadings.samples)")
-    // Only the stream sends a temperature, and the poll has none, so the
-    // last reading stays rather than the row vanishing and every card below
-    // it jumping.
+    // Proves the stream went live on the temperature row, not on the live
+    // 47%. The 47% shows only until `FakeMetricsStream.failureDelay` (5 s)
+    // after the stream starts, and `launch()` spends part of that window
+    // before the test can look (issue #57). Only the stream sends a
+    // temperature, after the CPU reading in the same tick, and the row stays
+    // when the stream fails.
     let temperature = element(identifier: "dashboard.cpuTemperature", in: app)
-    XCTAssertTrue(temperature.exists, "the temperature row is missing after the stream failed")
+    XCTAssertTrue(temperature.waitForExistence(timeout: 5), "the CPU temperature row never appeared, so the stream never went live")
+
+    // The fixture's polled CPU is 12%.
+    let cpu = element(identifier: "dashboard.metricGauge.cpu", in: app)
+    XCTAssertTrue(waitForValue(of: cpu, containing: "12%", timeout: 10), "the CPU gauge never fell back to the polled 12%, got \"\(cpu.value ?? "")\"")
+    // The poll has no temperature, so the last reading stays rather than the
+    // row vanishing and every card below it jumping.
+    XCTAssertTrue(temperature.exists, "the temperature row disappeared when the stream failed")
     XCTAssertTrue(spokenText(of: temperature).contains("52°C"), "the CPU temperature row read \"\(spokenText(of: temperature))\" after the stream failed")
     XCTAssertFalse(
       app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Couldn't reach the server")).firstMatch.exists,
