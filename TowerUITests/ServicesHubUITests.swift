@@ -217,6 +217,35 @@ final class ServicesHubUITests: XCTestCase {
     XCTAssertTrue(app.navigationBars["Tautulli"].waitForExistence(timeout: 5))
   }
 
+  func testAnOverlayTapOnAnInstanceLeavesOneServicesItemInTheTabBar() throws {
+    // Issue #37: in portrait the sidebar is an overlay. A tap on an instance
+    // closes it, the placement flips back to the top tab bar, and iPadOS drew
+    // the whole Services section as a second "Services" item beside the hub.
+    try XCTSkipUnless(
+      UIDevice.current.userInterfaceIdiom == .pad, "the sidebar section is iPad-only")
+    let app = XCUIApplication()
+    app.launchArguments = ["--uitest-seed-dashboard"]
+    app.launch()
+    useTabBarLayout(in: app)
+    showSidebar(in: app)
+    let tautulli = sidebarEntry("Tautulli", in: app)
+    XCTAssertTrue(tautulli.waitForExistence(timeout: 10))
+
+    tautulli.tap()
+
+    XCTAssertTrue(app.navigationBars["Tautulli"].waitForExistence(timeout: 10))
+    // A landscape (persistent) sidebar stays up after the tap, and its row has
+    // no top tab bar to count.
+    try XCTSkipUnless(
+      app.buttons["ToggleSideBar"].waitForExistence(timeout: 5),
+      "the sidebar is persistent here, not an overlay")
+    for line in tabBarRowDescription(in: app) { print("[tab-bar-row] \(line)") }
+    try saveScreenshot(named: "services-overlay-tab-bar")
+    XCTAssertEqual(
+      tabBarItems(labelled: "Services", in: app), 1,
+      "the tab bar shows the Services hub and the Services section")
+  }
+
   func testInstancesStayOutOfATabBarWithNoSidebar() throws {
     // The unfolded iPhone Duo is regular width with no sidebar, and its side
     // tab bar listed every instance after the five real tabs (issue #18). On

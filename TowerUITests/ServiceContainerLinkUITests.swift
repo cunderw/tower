@@ -115,23 +115,6 @@ final class ServiceContainerLinkUITests: XCTestCase {
     link.tap()
   }
 
-  /// The number of items labelled `label` in the iPad top tab bar.
-  ///
-  /// The bar has no identifier of its own, so its items are the buttons on the
-  /// sidebar toggle's row. Each item is two nested buttons with one frame, so
-  /// this counts distinct frames. The bell and the gear sit on the same row,
-  /// but carry other labels.
-  private func tabBarItems(labelled label: String, in app: XCUIApplication) -> Int {
-    let toggle = app.buttons["ToggleSideBar"].firstMatch
-    XCTAssertTrue(toggle.waitForExistence(timeout: 10), "no top tab bar")
-    let rowMidY = toggle.frame.midY
-    let frames = app.buttons.matching(NSPredicate(format: "label == %@", label))
-      .allElementsBoundByIndex
-      .map(\.frame)
-      .filter { abs($0.midY - rowMidY) < 1 }
-    return Set(frames.map { "\($0)" }).count
-  }
-
   // MARK: - Service → container
 
   func testAServiceOpensItsContainerEvenWhenStopped() {
