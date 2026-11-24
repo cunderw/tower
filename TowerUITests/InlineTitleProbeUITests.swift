@@ -38,6 +38,25 @@ final class InlineTitleProbeUITests: XCTestCase {
     print("[probe] SUMMARY inline=\(inline) total=\(total)")
   }
 
+  func testPlaceholderBar() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--uitest-reset-credentials"]
+    app.launch()
+    XCTAssertTrue(app.buttons["connect.demo"].waitForExistence(timeout: 15))
+    app.buttons["connect.demo"].tap()
+    app.buttons["Docker"].firstMatch.tap()
+    XCTAssertTrue(app.staticTexts["code-server"].waitForExistence(timeout: 15))
+    Thread.sleep(forTimeInterval: 1)
+    for b in app.navigationBars.allElementsBoundByIndex {
+      print("[probe] placeholder bar id=\(b.identifier) frame=\(b.frame)")
+    }
+    app.staticTexts["code-server"].tap()
+    Thread.sleep(forTimeInterval: 1.5)
+    for b in app.navigationBars.allElementsBoundByIndex {
+      print("[probe] detail bar id=\(b.identifier) frame=\(b.frame)")
+    }
+  }
+
   private func measure(_ app: XCUIApplication) -> String {
     let bars = app.navigationBars.allElementsBoundByIndex.filter { $0.frame.width > 900 }
     guard let bar = bars.first else { return "NOBAR" }
