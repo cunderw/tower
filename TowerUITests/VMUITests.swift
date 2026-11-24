@@ -156,8 +156,10 @@ final class VMUITests: XCTestCase {
     XCTAssertTrue(retry.exists, "the failed state lost its Try Again button")
     try saveScreenshot(named: "vms-error")
 
+    // About 62 pt with `fixedSize` (the view's own padding plus the stack's
+    // 16 pt spacing) and about 227 pt without it on iPhone 17.
     let gap = retry.frame.minY - error.frame.maxY
-    XCTAssertLessThan(gap, 60, "Try Again sits \(gap) pt below the message, not directly under it")
+    XCTAssertLessThan(gap, 100, "Try Again sits \(gap) pt below the message, not directly under it")
   }
 
   // MARK: - Detail
