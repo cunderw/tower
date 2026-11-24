@@ -298,6 +298,7 @@ final class ServicesHubUITests: XCTestCase {
     let gears = app.buttons.matching(identifier: "toolbar.settings").allElementsBoundByIndex
       .filter(\.isHittable)
     for gear in gears { print("[gear] \(gear.frame)") }
+    XCTAssertFalse(gears.isEmpty, "no gear on screen to check")
     return gears.filter { abs($0.frame.midY - bar.midY) >= 1 && $0.frame.minY < bar.maxY }.count
   }
 
